@@ -1,0 +1,25 @@
+[
+  {"id": "A1", "date": "2026-06-11", "group": "A", "home": "Mexico", "away": "South Africa", "status": "finished", "score": [2, 0]},
+  {"id": "C2", "date": "2026-06-14", "group": "C", "home": "Brazil", "away": "Haiti", "status": "finished", "score": [3, 0]},
+  {"id": "E1", "date": "2026-06-14", "group": "E", "home": "Germany", "away": "Curacao", "status": "finished", "score": [7, 1]},
+  {"id": "F1", "date": "2026-06-14", "group": "F", "home": "Netherlands", "away": "Japan", "status": "finished", "score": [2, 2]},
+  {"id": "F2", "date": "2026-06-14", "group": "F", "home": "Sweden", "away": "Tunisia", "status": "finished", "score": [5, 1]},
+  {"id": "I1", "date": "2026-06-16", "group": "I", "home": "France", "away": "Senegal", "status": "finished", "score": [3, 1]},
+  {"id": "I2", "date": "2026-06-16", "group": "I", "home": "Norway", "away": "Iraq", "status": "finished", "score": [4, 1]},
+  {"id": "G2", "date": "2026-06-15", "group": "G", "home": "Belgium", "away": "Egypt", "status": "finished", "score": [1, 1]},
+  {"id": "H1", "date": "2026-06-15", "group": "H", "home": "Spain", "away": "Cape Verde", "status": "finished", "score": [0, 0]},
+  {"id": "B2", "date": "2026-06-18", "group": "B", "home": "Switzerland", "away": "Bosnia", "status": "finished", "score": [4, 1]},
+  {"id": "B3", "date": "2026-06-18", "group": "B", "home": "Canada", "away": "Qatar", "status": "finished", "score": [6, 0]},
+
+  {"id": "F3", "date": "2026-06-20", "group": "F", "home": "Netherlands", "away": "Sweden", "status": "scheduled"},
+  {"id": "E2", "date": "2026-06-20", "group": "E", "home": "Germany", "away": "Ivory Coast", "status": "scheduled"},
+  {"id": "F4", "date": "2026-06-21", "group": "F", "home": "Tunisia", "away": "Japan", "status": "scheduled"},
+  {"id": "H2", "date": "2026-06-21", "group": "H", "home": "Spain", "away": "Saudi Arabia", "status": "scheduled"},
+  {"id": "G3", "date": "2026-06-21", "group": "G", "home": "Belgium", "away": "Iran", "status": "scheduled"},
+  {"id": "I3", "date": "2026-06-26", "group": "I", "home": "Norway", "away": "France", "status": "scheduled"},
+  {"id": "I4", "date": "2026-06-26", "group": "I", "home": "Senegal", "away": "Iraq", "status": "scheduled"},
+  {"id": "H4", "date": "2026-06-26", "group": "H", "home": "Uruguay", "away": "Spain", "status": "scheduled"},
+  {"id": "L3", "date": "2026-06-27", "group": "L", "home": "Panama", "away": "England", "status": "scheduled"},
+  {"id": "K3", "date": "2026-06-27", "group": "K", "home": "Colombia", "away": "Portugal", "status": "scheduled"},
+  {"id": "J3", "date": "2026-06-27", "group": "J", "home": "Jordan", "away": "Argentina", "status": "scheduled"}
+]
