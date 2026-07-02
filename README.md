@@ -1,51 +1,43 @@
-# VM 2026 — prediksjonsmodell
+# VM 2026 · Prediktor
 
-Elo → forventede mål → Poisson over alle resultater. Statisk side, gratis å kjøre.
-Pre-kamp-prediksjon for hver kamp + **live-modus** der du selv mater inn xG/stilling
-og modellen re-beregner sluttresultatet i nettleseren på sekundet.
+**Live:** https://wilolstad.github.io/vm2026-modell/
 
-## Hvorfor manuell live-input
-Live-xG finnes ikke gratis i sanntid (Sportmonks ~€129/mnd, iSports ~$49/mnd).
-Men du sitter uansett med Sofascore/Fotmob foran deg. Så i stedet for å betale for
-en feed, taster du inn xG-en når du har den — det var nettopp xG-tallene som gjorde
-prediksjonene presise. Du automatiserer matematikken, ikke datainnsamlingen.
+Prediksjonsmodell for alle 104 kamper i FIFA World Cup 2026. Alt kjører
+klient-side — siden henter live data direkte fra ESPNs (uoffisielle) scoreboard-API,
+så den trenger verken backend, API-nøkkel eller cron-jobb.
+
+## Modellen
+
+1. **Elo-ratinger** — hvert lag starter med en seed-rating (≈ eloratings.net før
+   mesterskapet). Alle spilte VM-kamper replays kronologisk i nettleseren og
+   oppdaterer ratingene fortløpende (K = 50, margin-vekting, +60 hjemmebonus for
+   USA/Mexico/Canada).
+2. **Poisson** — Elo-differansen mapper til forventet målproduksjon per lag
+   (snitt ≈ 2,55 mål/kamp). Poisson-grid over alle resultater gir H/U/B-sannsynligheter
+   og de mest sannsynlige sluttresultatene. I sluttspillet beregnes også
+   «videre»-sannsynlighet (ekstraomganger med 1/3 intensitet, straffer 50/50).
+3. **Live in-play** — under kamp skaleres forventet restproduksjon med gjenstående
+   spilletid, og vinnersannsynligheten regnes om gitt stillingen. Auto-refresh
+   hvert 60. sekund når det spilles.
+
+Prediksjonene for spilte kamper er laget med ratingene slik de var *før* hver kamp,
+så treffprosenten som vises er ærlig out-of-sample.
 
 ## Struktur
+
 ```
-scripts/engine.py   modellen (Elo, Poisson, live-betinging) — sannhetskilde
-scripts/build.py    henter Elo (eloratings.net TSV + fallback) + fixtures -> site/data.json
-data/fixtures.json  kampliste (oppdater manuelt eller fra openfootball)
-site/index.html     frontend: speiler motoren i JS, gjør live-omregning i nettleseren
-.github/workflows/  nightly build + deploy til GitHub Pages
+site/
+  index.html   – markup
+  styles.css   – mørkt tema
+  app.js       – datahenting, Elo-replay, Poisson, rendering
 ```
 
-Motoren finnes to steder bevisst: `engine.py` for nightly pre-kamp-bygging,
-samme matte i `index.html` slik at live-omregning skjer uten ny server-kjøring.
-De er verifisert mot hverandre (Belgia–Egypt live gir 19.5/32.2/48.4 i begge).
+Deployes automatisk til GitHub Pages ved push til `main`.
 
 ## Kjør lokalt
+
 ```bash
-python scripts/build.py          # genererer site/data.json
-cd site && python -m http.server # åpne localhost:8000
+python3 -m http.server 4173 --directory site
 ```
 
-## Deploy
-Push til GitHub, slå på Pages (Settings → Pages → Source: GitHub Actions).
-Workflowen bygger nightly kl. 05 UTC og ved hver push. Manuell trigger:
-Actions → Build and deploy → Run workflow.
-
-## Modellantakelser (vær ærlig om disse)
-- Elo fanger forventet styrke, ikke skader/form/tropp på dagen.
-- Poisson antar uavhengige mål med konstant rate — fanger ikke kollaps
-  (lag som gir opp ned 0-3) eller momentum. Høyre-halen på totalen er
-  derfor litt undervurdert i utklassinger.
-- Live blander observert xG-rate 60% / Elo-forventning 40% for å unngå
-  overreaksjon på små utvalg tidlig i kampen.
-- Vinnersjanse-fanen er en Elo-proxy (softmax), ikke full Monte Carlo.
-  Den fulle bracket-simuleringen ligger i `simulate.py` (kjøres separat).
-
-## Neste steg
-- `simulate.py`: full 50k Monte Carlo med tredjeplass-logikk og R32-brakett
-  (koden finnes — koble den inn i build.py for ekte vinnersjanse i data.json).
-- Logg prediksjon vs faktisk resultat per kamp for å måle kalibrering over tid.
-- Auto-oppdater fixtures fra openfootball/worldcup.json i workflowen.
+Ikke bruk dette som betting-råd.

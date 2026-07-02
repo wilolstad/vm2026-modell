@@ -1,376 +1,87 @@
 <!DOCTYPE html>
-<html lang="no">
+<html lang="nb">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>VM 2026 — Modell</title>
-<style>
-  :root {
-    --bg: #0a0e12;
-    --panel: #121821;
-    --panel-2: #1a222e;
-    --line: #243040;
-    --ink: #e8edf3;
-    --ink-dim: #8a97a8;
-    --pitch: #2d8a4e;
-    --pitch-dim: #1d5e35;
-    --accent: #f5c542;      /* lineman-gul, fra kortene */
-    --red: #e5484d;
-    --blue: #4a82d6;
-    --mono: "SF Mono", "Roboto Mono", ui-monospace, "Cascadia Code", monospace;
-    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
-  }
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  body {
-    background: var(--bg); color: var(--ink); font-family: var(--sans);
-    line-height: 1.45; -webkit-font-smoothing: antialiased;
-  }
-  .wrap { max-width: 1100px; margin: 0 auto; padding: 24px 18px 80px; }
-
-  header { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap;
-           border-bottom: 1px solid var(--line); padding-bottom: 18px; margin-bottom: 4px; }
-  header h1 { font-size: 26px; letter-spacing: -0.4px; font-weight: 700; }
-  header h1 .tag { color: var(--accent); }
-  .meta { font-family: var(--mono); font-size: 11px; color: var(--ink-dim); }
-  .meta b { color: var(--ink); font-weight: 500; }
-
-  .lead { color: var(--ink-dim); font-size: 13px; max-width: 620px; margin: 14px 0 26px; }
-  .lead code { font-family: var(--mono); color: var(--accent); font-size: 12px; }
-
-  .tabs { display: flex; gap: 2px; margin-bottom: 20px; border-bottom: 1px solid var(--line); }
-  .tab { font-family: var(--mono); font-size: 12px; letter-spacing: 0.5px; text-transform: uppercase;
-         padding: 10px 16px; color: var(--ink-dim); cursor: pointer; border-bottom: 2px solid transparent; }
-  .tab.on { color: var(--ink); border-bottom-color: var(--accent); }
-
-  /* match list */
-  .matches { display: grid; gap: 8px; }
-  .match {
-    background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
-    padding: 14px 16px; cursor: pointer; transition: border-color .15s, background .15s;
-  }
-  .match:hover { border-color: var(--pitch); background: var(--panel-2); }
-  .match.live { border-color: var(--accent); }
-  .match-top { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
-  .match-teams { display: flex; align-items: center; gap: 10px; font-size: 15px; font-weight: 600; }
-  .match-teams .vs { color: var(--ink-dim); font-weight: 400; font-size: 12px; }
-  .grp { font-family: var(--mono); font-size: 10px; color: var(--ink-dim);
-         border: 1px solid var(--line); border-radius: 4px; padding: 1px 5px; }
-  .date { font-family: var(--mono); font-size: 11px; color: var(--ink-dim); }
-  .score { font-family: var(--mono); font-weight: 700; font-size: 15px; }
-  .score.fin { color: var(--ink-dim); }
-
-  /* probability bar */
-  .pbar { display: flex; height: 6px; border-radius: 3px; overflow: hidden; margin-top: 12px; background: var(--line); }
-  .pbar i { display: block; height: 100%; }
-  .pbar .w { background: var(--pitch); }
-  .pbar .d { background: var(--ink-dim); }
-  .pbar .l { background: var(--blue); }
-  .plabels { display: flex; justify-content: space-between; font-family: var(--mono);
-             font-size: 10px; color: var(--ink-dim); margin-top: 5px; }
-
-  /* detail / live panel */
-  .detail { background: var(--panel); border: 1px solid var(--accent); border-radius: 12px;
-            padding: 0; margin: 8px 0 16px; overflow: hidden; }
-  .detail-head { background: var(--panel-2); padding: 14px 18px; display: flex;
-                 justify-content: space-between; align-items: center; border-bottom: 1px solid var(--line); }
-  .detail-head .t { font-size: 16px; font-weight: 700; }
-  .detail-head .close { font-family: var(--mono); font-size: 11px; color: var(--ink-dim);
-                        cursor: pointer; border: 1px solid var(--line); border-radius: 5px; padding: 4px 9px; }
-  .detail-body { padding: 18px; display: grid; grid-template-columns: 1fr 1fr; gap: 22px; }
-  @media (max-width: 680px) { .detail-body { grid-template-columns: 1fr; } }
-
-  .inputs h3, .results h3 { font-family: var(--mono); font-size: 11px; letter-spacing: 0.5px;
-    text-transform: uppercase; color: var(--accent); margin-bottom: 12px; }
-  .field { display: grid; grid-template-columns: 1fr 64px 64px; gap: 8px; align-items: center; margin-bottom: 9px; }
-  .field label { font-size: 12px; color: var(--ink-dim); }
-  .field .hdr { font-family: var(--mono); font-size: 10px; text-align: center; color: var(--ink-dim); }
-  .field input {
-    background: var(--bg); border: 1px solid var(--line); border-radius: 6px;
-    color: var(--ink); font-family: var(--mono); font-size: 13px; padding: 6px 8px;
-    width: 100%; text-align: center;
-  }
-  .field input:focus { outline: none; border-color: var(--accent); }
-  .hint { font-size: 11px; color: var(--ink-dim); margin: 10px 0 0; }
-  .hint b { color: var(--accent); font-weight: 500; }
-  .reset { font-family: var(--mono); font-size: 11px; color: var(--ink-dim); cursor: pointer;
-           background: none; border: 1px solid var(--line); border-radius: 5px; padding: 5px 10px; margin-top: 12px; }
-
-  .bigprob { display: flex; gap: 14px; margin-bottom: 16px; }
-  .bp { flex: 1; background: var(--panel-2); border: 1px solid var(--line); border-radius: 8px;
-        padding: 10px; text-align: center; }
-  .bp .v { font-family: var(--mono); font-size: 22px; font-weight: 700; }
-  .bp .k { font-size: 11px; color: var(--ink-dim); margin-top: 2px; }
-  .bp.win .v { color: var(--pitch); } .bp.draw .v { color: var(--ink-dim); } .bp.loss .v { color: var(--blue); }
-
-  .scores { display: grid; gap: 5px; }
-  .srow { display: grid; grid-template-columns: 56px 1fr 44px; gap: 10px; align-items: center; font-family: var(--mono); font-size: 12px; }
-  .srow .sc { font-weight: 700; }
-  .srow .track { height: 5px; background: var(--line); border-radius: 3px; overflow: hidden; }
-  .srow .track i { display: block; height: 100%; background: var(--accent); }
-  .srow .pct { text-align: right; color: var(--ink-dim); }
-
-  .markets { display: grid; grid-template-columns: repeat(3, 1fr); gap: 7px; margin-top: 16px;
-             border-top: 1px solid var(--line); padding-top: 14px; }
-  .mk { background: var(--panel-2); border: 1px solid var(--line); border-radius: 7px; padding: 8px 10px; }
-  .mk .k { font-size: 10px; color: var(--ink-dim); text-transform: uppercase; letter-spacing: 0.4px; }
-  .mk .v { font-family: var(--mono); font-size: 14px; font-weight: 700; margin-top: 2px; }
-  .mk .fair { font-family: var(--mono); font-size: 10px; color: var(--accent); }
-
-  .empty { color: var(--ink-dim); font-size: 13px; padding: 40px 0; text-align: center; }
-  footer { margin-top: 40px; border-top: 1px solid var(--line); padding-top: 16px;
-           font-size: 11px; color: var(--ink-dim); font-family: var(--mono); }
-</style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VM 2026 · Prediktor</title>
+<meta name="description" content="Live prediksjonsmodell for FIFA VM 2026 — Elo-ratinger, Poisson-modell og in-play vinnersannsynlighet for alle 104 kamper.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚽</text></svg>">
 </head>
 <body>
-<div class="wrap">
-  <header>
-    <h1>VM 2026 <span class="tag">/ modell</span></h1>
-    <div class="meta">elo: <b id="elo-src">…</b> · oppdatert <b id="gen">…</b></div>
-  </header>
 
-  <p class="lead">
-    Elo → forventede mål → Poisson over alle resultater. Klikk en kamp for å se prediksjonen.
-    Sitter du med kampen live? Fyll inn <code>minutt</code>, <code>stilling</code> og helst
-    <code>xG</code> — modellen re-beregner sluttresultatet på sekundet. Alt er valgfritt;
-    fyller du bare inn xG funker den fortsatt.
-  </p>
-
-  <div class="tabs">
-    <div class="tab on" data-tab="matches">Kamper</div>
-    <div class="tab" data-tab="winner">Vinnersjanse</div>
+<header class="topbar">
+  <div class="topbar-inner">
+    <div class="brand">
+      <span class="brand-mark">VM<b>26</b></span>
+      <span class="brand-sub">Prediktor</span>
+    </div>
+    <div class="topbar-status" id="topbar-status">
+      <span class="dot dot-idle" id="status-dot"></span>
+      <span id="status-text">Henter data …</span>
+    </div>
   </div>
+</header>
 
-  <div id="view-matches">
-    <div id="detail-slot"></div>
-    <div class="matches" id="match-list"></div>
-  </div>
+<main class="wrap">
 
-  <div id="view-winner" style="display:none">
-    <div id="winner-list"></div>
-  </div>
+  <section class="hero" id="hero">
+    <h1>FIFA World Cup 2026</h1>
+    <p class="hero-sub">Elo + Poisson-modell for alle 104 kamper — resultater, kommende kamper og live vinnersannsynlighet, rett fra ESPNs data-feed.</p>
+    <div class="stats" id="stats"></div>
+  </section>
 
-  <footer id="foot">modell: elo+poisson · ingen live-feed, du mater inn det som teller</footer>
+  <section class="controls">
+    <nav class="tabs" id="tabs">
+      <button data-tab="today"    class="tab">I dag</button>
+      <button data-tab="upcoming" class="tab">Kommende</button>
+      <button data-tab="results"  class="tab">Resultater</button>
+      <button data-tab="all"      class="tab">Alle kamper</button>
+      <button data-tab="power"    class="tab">Elo-rangering</button>
+    </nav>
+    <div class="chips" id="chips"></div>
+  </section>
+
+  <section id="content" class="content">
+    <div class="loading" id="loading">
+      <div class="spinner"></div>
+      <p>Laster kamper og regner om Elo-ratinger …</p>
+    </div>
+  </section>
+
+  <section class="method">
+    <h2>Metode</h2>
+    <div class="method-grid">
+      <div>
+        <h3>1 · Elo-ratinger</h3>
+        <p>Hvert lag starter med en rating basert på styrkenivå før mesterskapet. Alle spilte VM-kamper replays kronologisk og oppdaterer ratingene fortløpende (K&nbsp;=&nbsp;50, ekstra vekt ved store seiersmarginer, +60 hjemmebonus for vertsnasjonene).</p>
+      </div>
+      <div>
+        <h3>2 · Poisson-modell</h3>
+        <p>Elo-differansen mapper til forventet målproduksjon for hvert lag (snitt ≈ 2,55 mål per VM-kamp). En Poisson-fordeling over alle resultater gir sannsynlighet for seier, uavgjort og tap — pluss de mest sannsynlige sluttresultatene.</p>
+      </div>
+      <div>
+        <h3>3 · Live in-play</h3>
+        <p>Under kamp reduseres forventet restproduksjon proporsjonalt med gjenstående spilletid, og modellen regner om vinnersannsynligheten gitt stillingen. I sluttspillet inkluderes ekstraomganger og straffer (50/50) i «videre»-sannsynligheten.</p>
+      </div>
+    </div>
+    <p class="method-note">Datakilde: ESPN (uoffisielt API). Modellens treffprosent på spilte kamper vises i toppen — prediksjonene er laget med ratingene slik de var <em>før</em> hver kamp, så tallet er ærlig out-of-sample. Ikke bruk dette som betting-råd.</p>
+  </section>
+
+</main>
+
+<footer class="footer">
+  <span>VM 2026 Prediktor · bygget av William</span>
+  <span id="last-updated"></span>
+</footer>
+
+<div class="modal-backdrop" id="modal" hidden>
+  <div class="modal" id="modal-card" role="dialog" aria-modal="true"></div>
 </div>
 
-<script>
-// ---- modellmotor (speiler engine.py) ----
-function fact(n){let r=1;for(let i=2;i<=n;i++)r*=i;return r;}
-function pois(k,l){return Math.pow(l,k)*Math.exp(-l)/fact(k);}
-function xgSplit(ea,eb,ha,total){
-  const dr=(ea+ha)-eb, we=1/(1+Math.pow(10,-dr/400));
-  const sa=Math.pow(we,0.9)/(Math.pow(we,0.9)+Math.pow(1-we,0.9));
-  return [total*sa, total*(1-sa)];
-}
-function matrix(la,lb,mx){
-  const d={};for(let a=0;a<mx;a++)for(let b=0;b<mx;b++)d[a+'-'+b]=pois(a,la)*pois(b,lb);return d;
-}
-function summarise(d){
-  let wa=0,dr=0,wb=0,o25=0,o35=0,btts=0,csA=0,csB=0;
-  for(const k in d){const[a,b]=k.split('-').map(Number),p=d[k];
-    if(a>b)wa+=p;else if(a===b)dr+=p;else wb+=p;
-    if(a+b>2.5)o25+=p; if(a+b>3.5)o35+=p;
-    if(a>0&&b>0)btts+=p; if(b===0)csA+=p; if(a===0)csB+=p;}
-  const top=Object.entries(d).sort((x,y)=>y[1]-x[1]).slice(0,6)
-    .map(([k,p])=>{const[a,b]=k.split('-').map(Number);return{a,b,p};});
-  return{wa,dr,wb,o25,o35,u25:1-o25,btts,csA,csB,top};
-}
-function prematch(ea,eb,ha,total){const[la,lb]=xgSplit(ea,eb,ha,total);
-  const s=summarise(matrix(la,lb,8));s.xgA=la;s.xgB=lb;return s;}
-
-function live(ea,eb,ha,total,minute,ga,gb,xgA,xgB,redA,redB){
-  const remaining=Math.max(90-minute,0)+4, frac=remaining/90;
-  const[baseA,baseB]=xgSplit(ea,eb,ha,total);
-  let lamAfull=baseA, lamBfull=baseB;
-  if(xgA!=null&&minute>0){const o=xgA/minute*90; lamAfull=0.6*o+0.4*baseA;}
-  if(xgB!=null&&minute>0){const o=xgB/minute*90; lamBfull=0.6*o+0.4*baseB;}
-  const lead=ga-gb; let mA=1,mB=1;
-  if(lead>0){mA=0.85;mB=1.30;} else if(lead<0){mA=1.30;mB=0.85;}
-  mA*=(1-0.30*redA)*(1+0.15*redB); mB*=(1-0.30*redB)*(1+0.15*redA);
-  const lamA=Math.max(lamAfull*frac*mA,0.01), lamB=Math.max(lamBfull*frac*mB,0.01);
-  const rem=matrix(lamA,lamB,7), d={};
-  for(const k in rem){const[ra,rb]=k.split('-').map(Number);
-    const key=(ga+ra)+'-'+(gb+rb); d[key]=(d[key]||0)+rem[k];}
-  const s=summarise(d);s.xgA=lamA;s.xgB=lamB;s.liveRem=true;return s;
-}
-
-// ---- state ----
-let DATA=null, liveState={};
-const pct=x=>(x*100).toFixed(1)+'%';
-const fair=x=> x>0 ? (1/x).toFixed(2) : '–';
-
-async function load(){
-  DATA=await (await fetch('data.json?t='+Date.now())).json();
-  document.getElementById('elo-src').textContent=DATA.elo_source;
-  document.getElementById('gen').textContent=new Date(DATA.generated).toLocaleString('no-NO',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'});
-  // regn prematch i JS for konsistente feltnavn (wa/dr/wb)
-  DATA.matches.forEach(m=>{ m.pm=prematch(m.elo_home,m.elo_away,m.home_adv,m.total); });
-  renderMatches(); renderWinner();
-}
-
-function probBar(p){
-  return `<div class="pbar">
-    <i class="w" style="width:${p.wa*100}%"></i>
-    <i class="d" style="width:${p.dr*100}%"></i>
-    <i class="l" style="width:${p.wb*100}%"></i></div>`;
-}
-
-function renderMatches(){
-  const el=document.getElementById('match-list');
-  el.innerHTML=DATA.matches.map((m,i)=>{
-    const p=m.pm, fin=m.status==='finished';
-    const sc=m.score?`<span class="score ${fin?'fin':''}">${m.score[0]}–${m.score[1]}</span>`:`<span class="date">${m.date}</span>`;
-    const isLive=liveState[m.id]?'live':'';
-    return `<div class="match ${isLive}" data-i="${i}">
-      <div class="match-top">
-        <div class="match-teams"><span class="grp">${m.group}</span>
-          ${m.home} <span class="vs">vs</span> ${m.away}</div>
-        ${sc}
-      </div>
-      ${fin?'':probBar(p)+`<div class="plabels">
-        <span>${m.home} ${pct(p.wa)}</span><span>U ${pct(p.dr)}</span>
-        <span>${m.away} ${pct(p.wb)}</span></div>`}
-    </div>`;
-  }).join('');
-  el.querySelectorAll('.match').forEach(node=>{
-    node.onclick=()=>openDetail(+node.dataset.i);
-  });
-}
-
-function openDetail(i){
-  const m=DATA.matches[i];
-  if(m.status==='finished'){return;}
-  const slot=document.getElementById('detail-slot');
-  const ls=liveState[m.id]||{};
-  slot.innerHTML=`
-  <div class="detail">
-    <div class="detail-head">
-      <div class="t">${m.home} vs ${m.away}
-        <span class="grp">${m.group}</span></div>
-      <div class="close" id="closeDetail">lukk ✕</div>
-    </div>
-    <div class="detail-body">
-      <div class="inputs">
-        <h3>Live-input <span style="color:var(--ink-dim)">(alt valgfritt)</span></h3>
-        <div class="field">
-          <label>Minutt spilt</label>
-          <input id="in-min" type="number" min="0" max="120" placeholder="–" value="${ls.minute??''}">
-          <span></span>
-        </div>
-        <div class="field">
-          <span></span><span class="hdr">${m.home}</span><span class="hdr">${m.away}</span>
-        </div>
-        <div class="field">
-          <label>Mål (stilling)</label>
-          <input id="in-ga" type="number" min="0" placeholder="0" value="${ls.ga??''}">
-          <input id="in-gb" type="number" min="0" placeholder="0" value="${ls.gb??''}">
-        </div>
-        <div class="field">
-          <label>xG så langt</label>
-          <input id="in-xa" type="number" step="0.01" placeholder="–" value="${ls.xgA??''}">
-          <input id="in-xb" type="number" step="0.01" placeholder="–" value="${ls.xgB??''}">
-        </div>
-        <div class="field">
-          <label>Røde kort</label>
-          <input id="in-ra" type="number" min="0" placeholder="0" value="${ls.redA??''}">
-          <input id="in-rb" type="number" min="0" placeholder="0" value="${ls.redB??''}">
-        </div>
-        <p class="hint"><b>xG er viktigst.</b> Fyll bare inn det du har — resten faller tilbake på pre-kamp-Elo.</p>
-        <button class="reset" id="resetLive">Nullstill til pre-kamp</button>
-      </div>
-      <div class="results" id="resBox"></div>
-    </div>
-  </div>`;
-  slot.scrollIntoView({behavior:'smooth',block:'nearest'});
-
-  const recompute=()=>{
-    const minute=valNum('in-min'), ga=valNum('in-ga'), gb=valNum('in-gb'),
-      xgA=valNum('in-xa'), xgB=valNum('in-xb'), redA=valNum('in-ra')||0, redB=valNum('in-rb')||0;
-    let p, mode;
-    const hasLive = minute!=null && (ga!=null||gb!=null||xgA!=null||xgB!=null);
-    if(hasLive){
-      p=live(m.elo_home,m.elo_away,m.home_adv,m.total,minute,ga||0,gb||0,
-             xgA,xgB,redA,redB); mode='live';
-      liveState[m.id]={minute,ga,gb,xgA,xgB,redA,redB};
-    } else {
-      p=m.pm; mode='pre'; delete liveState[m.id];
-    }
-    renderResults(m,p,mode);
-    renderMatches(); // oppdater live-markering i lista
-  };
-  ['in-min','in-ga','in-gb','in-xa','in-xb','in-ra','in-rb'].forEach(id=>{
-    document.getElementById(id).addEventListener('input',recompute);
-  });
-  document.getElementById('closeDetail').onclick=()=>{slot.innerHTML='';};
-  document.getElementById('resetLive').onclick=()=>{
-    delete liveState[m.id]; openDetail(i);
-  };
-  recompute();
-}
-function valNum(id){const v=document.getElementById(id).value;return v===''?null:parseFloat(v);}
-
-function renderResults(m,p,mode){
-  const box=document.getElementById('resBox');
-  const tag = mode==='live'
-    ? `<span style="color:var(--accent);font-family:var(--mono);font-size:10px">● LIVE-JUSTERT</span>`
-    : `<span style="color:var(--ink-dim);font-family:var(--mono);font-size:10px">PRE-KAMP</span>`;
-  const maxTop=p.top[0].p;
-  box.innerHTML=`
-    <h3>Prediksjon ${tag}</h3>
-    <div class="bigprob">
-      <div class="bp win"><div class="v">${pct(p.wa)}</div><div class="k">${m.home}</div></div>
-      <div class="bp draw"><div class="v">${pct(p.dr)}</div><div class="k">uavgjort</div></div>
-      <div class="bp loss"><div class="v">${pct(p.wb)}</div><div class="k">${m.away}</div></div>
-    </div>
-    <div class="scores">
-      ${p.top.map(s=>`<div class="srow">
-        <span class="sc">${s.a}–${s.b}</span>
-        <span class="track"><i style="width:${s.p/maxTop*100}%"></i></span>
-        <span class="pct">${pct(s.p)}</span></div>`).join('')}
-    </div>
-    <div class="markets">
-      <div class="mk"><div class="k">Over 2.5</div><div class="v">${pct(p.o25)}</div><div class="fair">fair ${fair(p.o25)}</div></div>
-      <div class="mk"><div class="k">Under 2.5</div><div class="v">${pct(p.u25)}</div><div class="fair">fair ${fair(p.u25)}</div></div>
-      <div class="mk"><div class="k">Begge scorer</div><div class="v">${pct(p.btts)}</div><div class="fair">fair ${fair(p.btts)}</div></div>
-      <div class="mk"><div class="k">${m.home} til null</div><div class="v">${pct(p.csA)}</div><div class="fair">fair ${fair(p.csA)}</div></div>
-      <div class="mk"><div class="k">${m.away} til null</div><div class="v">${pct(p.csB)}</div><div class="fair">fair ${fair(p.csB)}</div></div>
-      <div class="mk"><div class="k">xG-est</div><div class="v">${p.xgA.toFixed(2)}–${p.xgB.toFixed(2)}</div><div class="fair">${mode==='live'?'gjenstår':'full kamp'}</div></div>
-    </div>`;
-}
-
-// ---- vinnersjanse (forenklet: gruppe-styrke-proxy via Elo) ----
-function renderWinner(){
-  const el=document.getElementById('winner-list');
-  const teams=Object.entries(DATA.elo).map(([n,e])=>({n,e,adj:e+(DATA.hosts[n]||0)}))
-    .sort((a,b)=>b.adj-a.adj);
-  const maxE=teams[0].adj;
-  // grov proxy: softmax over Elo for relativ vinnersjanse-illustrasjon
-  const T=110; const exps=teams.map(t=>Math.exp((t.adj-maxE)/T));
-  const sum=exps.reduce((a,b)=>a+b,0);
-  el.innerHTML=`<p class="lead" style="margin-top:0">Relativ styrkerangering (Elo + vertsbonus). Dette er en proxy for illustrasjon — den fulle vinnersjansen krever Monte Carlo over hele braketten, som kjøres i Python-pipelinen.</p>
-    <div class="matches">${teams.slice(0,16).map((t,i)=>`
-      <div class="match" style="cursor:default">
-        <div class="match-top">
-          <div class="match-teams"><span class="grp">${String(i+1).padStart(2,'0')}</span>${t.n}
-            ${DATA.hosts[t.n]?'<span class="vs">vert</span>':''}</div>
-          <span class="score">${(exps[i]/sum*100).toFixed(1)}%</span>
-        </div>
-        <div class="pbar"><i class="w" style="width:${exps[i]/exps[0]*100}%"></i></div>
-        <div class="plabels"><span>Elo ${t.e}${DATA.hosts[t.n]?' +'+DATA.hosts[t.n]:''}</span><span></span></div>
-      </div>`).join('')}</div>`;
-}
-
-// ---- tabs ----
-document.querySelectorAll('.tab').forEach(t=>{
-  t.onclick=()=>{
-    document.querySelectorAll('.tab').forEach(x=>x.classList.remove('on'));
-    t.classList.add('on');
-    const tab=t.dataset.tab;
-    document.getElementById('view-matches').style.display=tab==='matches'?'block':'none';
-    document.getElementById('view-winner').style.display=tab==='winner'?'block':'none';
-  };
-});
-
-load();
-</script>
+<script src="app.js"></script>
 </body>
 </html>
