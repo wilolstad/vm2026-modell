@@ -17,8 +17,14 @@ så den trenger verken backend, API-nøkkel eller cron-jobb.
    og de mest sannsynlige sluttresultatene. I sluttspillet beregnes også
    «videre»-sannsynlighet (ekstraomganger med 1/3 intensitet, straffer 50/50).
 3. **Live in-play** — under kamp skaleres forventet restproduksjon med gjenstående
-   spilletid, og vinnersannsynligheten regnes om gitt stillingen. Auto-refresh
-   hvert 60. sekund når det spilles.
+   spilletid og justeres for kampbildet (skudd på mål, ballbesittelse, røde kort
+   fra ESPNs summary-API). Vinnersannsynligheten regnes om gitt stillingen.
+   Auto-refresh hvert 60. sekund når det spilles.
+4. **Vinnersjanser** — resten av sluttspilltreet simuleres 4 000 ganger
+   (Monte Carlo) per datalast → sannsynlighet for kvartfinale/semifinale/finale/tittel.
+5. **Modell vs. marked** — DraftKings-odds fra feeden konverteres til impliserte
+   sannsynligheter (renset for margin) og vises mot modellen; 6+ pp avvik flagges
+   som «value» (dvs. uenighet, ikke fasit).
 
 Prediksjonene for spilte kamper er laget med ratingene slik de var *før* hver kamp,
 så treffprosenten som vises er ærlig out-of-sample.

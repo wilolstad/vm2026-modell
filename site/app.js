@@ -7,6 +7,9 @@
 const API =
   "https://site.api.espn.com/apis/site/v2/sports/soccer/fifa.world/scoreboard" +
   "?dates=20260611-20260719&limit=200";
+const SUMMARY_API =
+  "https://site.api.espn.com/apis/site/v2/sports/soccer/fifa.world/summary?event=";
+const SIM_RUNS = 4000;
 
 /* Start-Elo (≈ eloratings.net før mesterskapet). Oppdateres live av spilte kamper. */
 const ELO_SEED = {
@@ -61,6 +64,9 @@ const S = {
   elo: {},          // navn -> rating nå
   eloStart: {},     // navn -> seed brukt
   alive: new Set(), // lag som fortsatt er med
+  summaries: {},    // eventId -> {stat, goals, t} fra summary-API
+  sim: null,        // Monte Carlo-resultat
+  modalId: null,    // åpen kamp i modal
   tab: "today",
   round: "all",
   timer: null,
@@ -126,20 +132,37 @@ function predict(eloH, eloA, knockout) {
   return { ...g, lh, la, adv };
 }
 
-/* Live: gjenstående tid -> restlambda, regn om gitt stillingen. */
+/* Live: gjenstående tid -> restlambda, justert for kampbildet
+   (skudd på mål + possession + røde kort), regnet om gitt stillingen. */
 function predictLive(m) {
   const eloH = teamElo(m.home.name) + hostBonus(m.home.name);
   const eloA = teamElo(m.away.name);
   const { lh, la } = lambdas(eloH, eloA);
   const played = Math.min(m.clockMin ?? 0, 90);
   const rem = Math.max(90 - played, 2) / 90;
-  const g = grid(lh * rem, la * rem, m.home.score, m.away.score);
+
+  let mh = 1, ma = 1, statsUsed = false;
+  const sum = S.summaries[m.id];
+  const sh = sum?.stat?.[m.home.id], sa = sum?.stat?.[m.away.id];
+  if (sh && sa && played >= 15) { // trenger litt kamp før statistikken sier noe
+    const sotShare = (sh.sot + 1) / ((sh.sot || 0) + (sa.sot || 0) + 2);
+    const possShare = sh.poss != null && sa.poss != null && sh.poss + sa.poss > 0
+      ? sh.poss / (sh.poss + sa.poss) : 0.5;
+    const mix = 0.7 * sotShare + 0.3 * possShare; // dominans, 0..1
+    mh = 0.6 + 0.8 * mix;
+    ma = 0.6 + 0.8 * (1 - mix);
+    if (sh.red) { mh *= Math.pow(0.7, sh.red); ma *= Math.pow(1.15, sh.red); }
+    if (sa.red) { ma *= Math.pow(0.7, sa.red); mh *= Math.pow(1.15, sa.red); }
+    statsUsed = true;
+  }
+
+  const g = grid(lh * rem * mh, la * rem * ma, m.home.score, m.away.score);
   let adv = null;
   if (m.knockout) {
-    const et = grid(lh / 3, la / 3);
+    const et = grid((lh * mh) / 3, (la * ma) / 3);
     adv = g.pH + g.pD * (et.pH + et.pD * 0.5);
   }
-  return { ...g, adv };
+  return { ...g, adv, statsUsed };
 }
 
 function teamElo(name) { return S.elo[name] ?? ELO_SEED[name] ?? ELO_DEFAULT; }
@@ -172,6 +195,7 @@ function parseEvent(ev) {
   const groupMatch = note.match(/Group ([A-L])/);
 
   const team = (x) => ({
+    id: x.team.id,
     name: x.team.displayName,
     no: teamNo(x.team.displayName),
     abbr: x.team.abbreviation,
@@ -181,6 +205,20 @@ function parseEvent(ev) {
     winner: x.winner === true,
     tbd: isTBD(x.team.displayName),
   });
+
+  /* markedets impliserte sannsynligheter fra amerikansk moneyline, renset for margin */
+  const american = (o) => (o == null || isNaN(o) ? null : o > 0 ? 100 / (o + 100) : -o / (-o + 100));
+  let market = null;
+  const odds = (c.odds || [])[0];
+  if (odds && odds.moneyline) {
+    const ph = american(parseInt(odds.moneyline.home?.close?.odds, 10));
+    const pa = american(parseInt(odds.moneyline.away?.close?.odds, 10));
+    const pd = american(odds.drawOdds?.moneyLine);
+    if (ph && pa && pd) {
+      const s = ph + pd + pa;
+      market = { pH: ph / s, pD: pd / s, pA: pa / s, provider: odds.provider?.name || "Marked" };
+    }
+  }
 
   let clockMin = null;
   if (st.state === "in") {
@@ -204,8 +242,41 @@ function parseEvent(ev) {
     city: c.venue && c.venue.address ? c.venue.address.city : "",
     home: team(h),
     away: team(a),
+    market,
     pred: null, // settes under replay / prediksjon
   };
+}
+
+/* ---------- summary-API: kampstatistikk + målscorere ---------- */
+
+async function fetchSummary(id) {
+  try {
+    const res = await fetch(SUMMARY_API + id);
+    if (!res.ok) return;
+    const s = await res.json();
+    const stat = {};
+    for (const t of s.boxscore?.teams || []) {
+      const get = (n) => {
+        const x = (t.statistics || []).find((y) => y.name === n);
+        return x && x.displayValue != null ? parseFloat(x.displayValue) : null;
+      };
+      stat[t.team.id] = {
+        poss: get("possessionPct"), shots: get("totalShots"), sot: get("shotsOnTarget"),
+        corners: get("wonCorners"), yellow: get("yellowCards"), red: get("redCards"),
+        saves: get("saves"), fouls: get("foulsCommitted"),
+      };
+    }
+    const goals = (s.keyEvents || [])
+      .filter((k) => {
+        const t = (k.type?.text || "").toLowerCase();
+        return t === "goal" || t === "own goal" || t === "penalty - scored";
+      })
+      .map((k) => ({ clock: k.clock?.displayValue || "", text: k.text || "" }));
+    const reds = (s.keyEvents || [])
+      .filter((k) => /red card/i.test(k.type?.text || ""))
+      .map((k) => ({ clock: k.clock?.displayValue || "", text: k.text || "" }));
+    S.summaries[id] = { stat, goals, reds, t: Date.now() };
+  } catch { /* summary er nice-to-have, aldri blokkerende */ }
 }
 
 /* Replay alle spilte kamper kronologisk: lagre pre-kamp-prediksjon
@@ -269,6 +340,77 @@ function replayElo() {
   if (groupDone >= 72) {
     for (const t of Object.keys(S.elo)) if (!inKO.has(t)) S.alive.delete(t);
   }
+}
+
+/* ---------- Monte Carlo: simuler resten av sluttspillet ---------- */
+
+function samplePoisson(lam) {
+  const L = Math.exp(-lam);
+  let k = 0, p = 1;
+  do { k++; p *= Math.random(); } while (p > L);
+  return k - 1;
+}
+
+const REF_RE = /^(Round of 32|Round of 16|Quarterfinal|Semifinal) (\d+) (Winner|Loser)$/;
+const REF_ROUND = {
+  "Round of 32": "round-of-32", "Round of 16": "round-of-16",
+  "Quarterfinal": "quarterfinals", "Semifinal": "semifinals",
+};
+const SIM_ROUNDS = ["round-of-32", "round-of-16", "quarterfinals", "semifinals", "3rd-place-match", "final"];
+
+/* Plassholderne («Round of 32 11 Winner») refererer kamp nr. N i runden,
+   kronologisk — verifisert mot spilte kamper. */
+function simulate(runs) {
+  const byRound = {};
+  for (const r of SIM_ROUNDS) {
+    byRound[r] = S.matches.filter((m) => m.round === r).sort((a, b) => a.date - b.date);
+  }
+  if (!byRound["final"].length) return null;
+
+  const reach = {};
+  const ensure = (t) => reach[t] || (reach[t] = { qf: 0, sf: 0, f: 0, w: 0 });
+
+  for (let i = 0; i < runs; i++) {
+    const winners = {}, losers = {};
+    const resolve = (t) => {
+      if (!t.tbd) return t.name;
+      const mm = t.name.match(REF_RE);
+      if (!mm) return null;
+      const src = byRound[REF_ROUND[mm[1]]][+mm[2] - 1];
+      if (!src) return null;
+      return mm[3] === "Winner" ? winners[src.id] : losers[src.id];
+    };
+
+    for (const r of SIM_ROUNDS) {
+      for (const m of byRound[r]) {
+        let hN, aN, hWins;
+        if (m.state === "post" && !m.home.tbd && !m.away.tbd) {
+          hN = m.home.name; aN = m.away.name; hWins = m.home.winner;
+        } else {
+          hN = resolve(m.home); aN = resolve(m.away);
+          if (!hN || !aN) continue;
+          const { lh, la } = lambdas(teamElo(hN) + hostBonus(hN), teamElo(aN));
+          const gh = samplePoisson(lh), ga = samplePoisson(la);
+          if (gh !== ga) hWins = gh > ga;
+          else {
+            const eh = samplePoisson(lh / 3), ea = samplePoisson(la / 3);
+            hWins = eh !== ea ? eh > ea : Math.random() < 0.5;
+          }
+        }
+        winners[m.id] = hWins ? hN : aN;
+        losers[m.id] = hWins ? aN : hN;
+      }
+    }
+    for (const m of byRound["round-of-16"]) if (winners[m.id]) ensure(winners[m.id]).qf++;
+    for (const m of byRound["quarterfinals"]) if (winners[m.id]) ensure(winners[m.id]).sf++;
+    for (const m of byRound["semifinals"]) if (winners[m.id]) ensure(winners[m.id]).f++;
+    const fin = byRound["final"][0];
+    if (winners[fin.id]) ensure(winners[fin.id]).w++;
+  }
+
+  return Object.entries(reach)
+    .map(([t, c]) => ({ t, qf: c.qf / runs, sf: c.sf / runs, f: c.f / runs, w: c.w / runs }))
+    .sort((a, b) => b.w - a.w || b.f - a.f || b.sf - a.sf);
 }
 
 /* ---------- hjelpere ---------- */
@@ -375,7 +517,7 @@ function renderStats() {
 
 function renderChips() {
   const el = $("chips");
-  if (S.tab === "power") { el.innerHTML = ""; return; }
+  if (S.tab === "power" || S.tab === "sim") { el.innerHTML = ""; return; }
   const chips = [["all", "Alle runder"], ...ROUND_ORDER.map((r) => [r, ROUND_NO[r]])];
   el.innerHTML = chips
     .map(([v, l]) => `<button class="chip ${S.round === v ? "active" : ""}" data-round="${v}">${l}</button>`)
@@ -402,6 +544,7 @@ function visibleMatches() {
 function renderContent() {
   const el = $("content");
   if (S.tab === "power") { el.innerHTML = powerHTML(); return; }
+  if (S.tab === "sim") { el.innerHTML = simHTML(); return; }
   const ms = visibleMatches();
   if (!ms.length) {
     el.innerHTML = `<div class="empty">Ingen kamper her${S.tab === "today" ? " i dag — sjekk «Kommende»" : ""}.</div>`;
@@ -456,7 +599,9 @@ function matchCard(m) {
   } else if (m.state === "post") {
     statusHtml = `<span class="badge-ft">${m.pens ? "Straffer" : m.aet ? "E.omg." : "Slutt"}</span>`;
   } else {
-    statusHtml = `<span>${fmtTime(m.date)}</span>`;
+    const edge = edgeOf(m);
+    const vb = edge ? `<span class="value-badge" title="Modellen avviker ${Math.round(edge.d * 100)} pp fra markedet">Value</span> ` : "";
+    statusHtml = `<span>${vb}${fmtTime(m.date)}</span>`;
   }
 
   let probBar = "";
@@ -520,6 +665,40 @@ function powerHTML() {
     </tbody></table>`;
 }
 
+function simHTML() {
+  if (!S.sim || !S.sim.length) {
+    return `<div class="empty">Simuleringen trenger sluttspillkamper — kommer når treet er klart.</div>`;
+  }
+  const fp = (p) => (p >= 0.995 ? "100 %" : p < 0.001 ? "–" : p < 0.10 ? (p * 100).toFixed(1).replace(".", ",") + " %" : Math.round(p * 100) + " %");
+  const maxW = S.sim[0].w || 1;
+  return `
+    <p class="sim-intro">Resten av sluttspillet simulert ${SIM_RUNS.toLocaleString("nb-NO")} ganger med dagens Elo-ratinger. Oppdateres etter hver spilte kamp.</p>
+    <table class="power-table sim-table">
+    <thead><tr><th></th><th>Lag</th><th style="text-align:right">Kvartfinale</th><th style="text-align:right">Semifinale</th><th style="text-align:right">Finale</th><th style="text-align:right">Vinner VM</th><th class="sim-barcol"></th></tr></thead>
+    <tbody>${S.sim.map((r, i) => `
+      <tr class="${r.t === "Norway" ? "sim-norge" : ""}">
+        <td class="rank">${i + 1}</td>
+        <td><span class="tcell">${teamLogo(r.t) ? `<img src="${teamLogo(r.t)}" alt="">` : ""}${esc(teamNo(r.t))}</span></td>
+        <td class="num">${fp(r.qf)}</td>
+        <td class="num">${fp(r.sf)}</td>
+        <td class="num">${fp(r.f)}</td>
+        <td class="num win">${fp(r.w)}</td>
+        <td class="sim-barcol"><div class="sim-bar"><i style="width:${(r.w / maxW) * 100}%"></i></div></td>
+      </tr>`).join("")}
+    </tbody></table>`;
+}
+
+/* value-flagg: modellen avviker 6+ pp fra markedet på et utfall */
+function edgeOf(m) {
+  if (!m.pred || !m.market || m.state !== "pre") return null;
+  const diffs = [
+    { k: "H", d: m.pred.pH - m.market.pH, team: m.home },
+    { k: "D", d: m.pred.pD - m.market.pD, team: null },
+    { k: "A", d: m.pred.pA - m.market.pA, team: m.away },
+  ].sort((a, b) => b.d - a.d);
+  return diffs[0].d >= 0.06 ? diffs[0] : null;
+}
+
 const logoCache = {};
 function teamLogo(name) {
   if (name in logoCache) return logoCache[name];
@@ -533,6 +712,11 @@ function teamLogo(name) {
 /* ---------- modal ---------- */
 
 function openModal(m) {
+  S.modalId = m.id;
+  // hent kampstatistikk i bakgrunnen for spilte/pågående kamper
+  if (m.state !== "pre" && !S.summaries[m.id]) {
+    fetchSummary(m.id).then(() => { if (S.modalId === m.id) openModal(m); });
+  }
   const p = m.state === "in" && m.livePred ? m.livePred : m.pred;
   const eloH = Math.round(teamElo(m.home.name));
   const eloA = Math.round(teamElo(m.away.name));
@@ -574,6 +758,65 @@ function openModal(m) {
       <p style="color:var(--ink-dim);font-size:.88rem">Lagene er ikke klare ennå — prediksjonen kommer når motstanderne er avgjort.</p>`;
   }
 
+  // modell vs. marked
+  let marketHtml = "";
+  if (m.market && m.pred && m.state === "pre") {
+    const rows = [
+      [m.home.no, m.pred.pH, m.market.pH],
+      ["Uavgjort", m.pred.pD, m.market.pD],
+      [m.away.no, m.pred.pA, m.market.pA],
+    ];
+    const edge = edgeOf(m);
+    marketHtml = `
+      <div class="m-sec">Modell vs. marked (${esc(m.market.provider)})</div>
+      <table class="mvm">
+        <thead><tr><th></th>${rows.map((r) => `<th>${esc(r[0])}</th>`).join("")}</tr></thead>
+        <tbody>
+          <tr><td>Modell</td>${rows.map((r) => `<td>${pct(r[1])}</td>`).join("")}</tr>
+          <tr><td>Marked</td>${rows.map((r) => `<td>${pct(r[2])}</td>`).join("")}</tr>
+          <tr class="diff"><td>Avvik</td>${rows.map((r) => {
+            const d = Math.round((r[1] - r[2]) * 100);
+            return `<td class="${d >= 6 ? "pos" : d <= -6 ? "neg" : ""}">${d > 0 ? "+" : ""}${d} pp</td>`;
+          }).join("")}</tr>
+        </tbody>
+      </table>
+      ${edge ? `<p class="mvm-note">Modellen tror mer på ${edge.team ? esc(edge.team.no) : "uavgjort"} enn markedet gjør. Det betyr at de er uenige — ikke at modellen har rett.</p>` : ""}`;
+  }
+
+  // kampstatistikk + målscorere fra summary-API
+  let statsHtml = "";
+  const sum = S.summaries[m.id];
+  if (m.state !== "pre" && sum) {
+    const sh = sum.stat[m.home.id], sa = sum.stat[m.away.id];
+    if (sh && sa) {
+      const rows = [
+        ["Ballbesittelse", sh.poss, sa.poss, "%"],
+        ["Skudd", sh.shots, sa.shots, ""],
+        ["Skudd på mål", sh.sot, sa.sot, ""],
+        ["Cornere", sh.corners, sa.corners, ""],
+        ["Gule kort", sh.yellow, sa.yellow, ""],
+        ["Røde kort", sh.red, sa.red, ""],
+      ].filter((r) => r[1] != null && r[2] != null);
+      statsHtml = `
+        <div class="m-sec">Kampstatistikk${m.state === "in" ? " (live)" : ""}</div>
+        ${rows.map(([l, a, b, u]) => {
+          const tot = (a + b) || 1;
+          return `<div class="stat-duel">
+            <span class="sv">${a}${u}</span>
+            <div class="sd-bars"><i class="l" style="width:${(a / tot) * 100}%"></i><i class="r" style="width:${(b / tot) * 100}%"></i></div>
+            <span class="sv">${b}${u}</span>
+            <span class="sl">${l}</span>
+          </div>`;
+        }).join("")}`;
+    }
+    if (sum.goals.length || sum.reds.length) {
+      const evs = [...sum.goals.map((g) => ({ ...g, kind: "goal" })), ...sum.reds.map((r) => ({ ...r, kind: "red" }))];
+      statsHtml += `
+        <div class="m-sec">Hendelser</div>
+        ${evs.map((e) => `<div class="m-event"><span class="ec">${esc(e.clock)}</span><span class="ei">${e.kind === "goal" ? "⚽" : "🟥"}</span><span>${esc(e.text)}</span></div>`).join("")}`;
+    }
+  }
+
   $("modal-card").innerHTML = `
     <div class="m-round"><span>${m.group || ROUND_NO[m.round]}</span><button class="m-close" id="m-close">✕</button></div>
     <div class="m-teams">
@@ -583,6 +826,8 @@ function openModal(m) {
     </div>
     <div class="m-when">${m.state === "pre" ? "" : cap(fmtDayKey(m.date)) + " · " + fmtTime(m.date)}</div>
     ${probsHtml}
+    ${marketHtml}
+    ${statsHtml}
     <div class="m-venue">${esc(m.venue)}${m.city ? " · " + esc(m.city) : ""}</div>`;
   $("modal").hidden = false;
   document.body.style.overflow = "hidden";
@@ -590,6 +835,7 @@ function openModal(m) {
 }
 
 function closeModal() {
+  S.modalId = null;
   $("modal").hidden = true;
   document.body.style.overflow = "";
 }
@@ -602,7 +848,10 @@ async function load() {
     if (!res.ok) throw new Error("HTTP " + res.status);
     const data = await res.json();
     S.matches = (data.events || []).map(parseEvent);
+    // hent kampstatistikk for pågående kamper før live-modellen regnes
+    await Promise.all(S.matches.filter((m) => m.state === "in").map((m) => fetchSummary(m.id)));
     replayElo();
+    S.sim = simulate(SIM_RUNS);
     render();
   } catch (err) {
     console.error(err);

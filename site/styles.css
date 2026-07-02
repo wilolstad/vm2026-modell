@@ -262,6 +262,69 @@ body {
   padding: 1px 8px; border-radius: 999px;
 }
 
+/* ---------- vinnersjanser (sim) ---------- */
+
+.sim-intro { color: var(--ink-dim); font-size: 0.88rem; margin-bottom: 16px; max-width: 640px; }
+.sim-table .win { color: var(--volt); font-weight: 700; }
+.sim-table .sim-barcol { width: 120px; }
+.sim-bar { height: 8px; border-radius: 4px; background: var(--panel-2); overflow: hidden; }
+.sim-bar i { display: block; height: 100%; background: var(--volt-dim); border-radius: 4px; }
+.sim-norge td { background: rgba(212, 255, 63, 0.04); }
+.sim-norge .tcell::after {
+  content: "🇳🇴"; font-size: 0.8rem;
+}
+
+/* ---------- value-badge ---------- */
+
+.value-badge {
+  display: inline-block; font-size: 0.66rem; font-weight: 700;
+  color: var(--volt); border: 1px solid var(--volt-dim); border-radius: 999px;
+  padding: 0 8px; margin-right: 6px; text-transform: uppercase; letter-spacing: 0.06em;
+  vertical-align: 1px;
+}
+
+/* ---------- modell vs. marked ---------- */
+
+.mvm { width: 100%; border-collapse: collapse; font-size: 0.84rem; }
+.mvm th {
+  font-size: 0.74rem; color: var(--ink-faint); font-weight: 600; text-align: right;
+  padding: 4px 8px; max-width: 90px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.mvm th:first-child { text-align: left; }
+.mvm td { padding: 5px 8px; text-align: right; font-family: var(--mono); border-top: 1px solid var(--line); }
+.mvm td:first-child { text-align: left; font-family: var(--sans); color: var(--ink-dim); }
+.mvm .diff td { color: var(--ink-faint); }
+.mvm .diff td.pos { color: var(--volt); font-weight: 600; }
+.mvm .diff td.neg { color: var(--away); font-weight: 600; }
+.mvm-note { font-size: 0.76rem; color: var(--ink-faint); margin-top: 8px; }
+
+/* ---------- kampstatistikk-dueller ---------- */
+
+.stat-duel {
+  display: grid; grid-template-columns: 52px 1fr 52px; grid-template-rows: auto auto;
+  gap: 2px 12px; align-items: center; margin-bottom: 10px;
+}
+.stat-duel .sv { font-family: var(--mono); font-size: 0.82rem; font-weight: 600; }
+.stat-duel .sv:first-child { text-align: left; }
+.stat-duel .sv:nth-of-type(2) { text-align: right; }
+.stat-duel .sd-bars { display: flex; gap: 3px; height: 7px; }
+.stat-duel .sd-bars i { display: block; height: 100%; border-radius: 4px; }
+.stat-duel .sd-bars .l { background: var(--volt); margin-left: auto; }
+.stat-duel .sd-bars .r { background: var(--away); }
+.stat-duel .sd-bars { flex-direction: row; }
+.stat-duel .sd-bars .l { order: 1; }
+.stat-duel .sd-bars .r { order: 2; }
+.stat-duel .sl {
+  grid-column: 1 / -1; text-align: center; font-size: 0.72rem; color: var(--ink-faint);
+}
+
+.m-event {
+  display: flex; gap: 10px; align-items: baseline;
+  font-size: 0.8rem; color: var(--ink-dim); margin-bottom: 7px;
+}
+.m-event .ec { font-family: var(--mono); color: var(--ink-faint); min-width: 44px; text-align: right; flex: 0 0 auto; }
+.m-event .ei { flex: 0 0 auto; }
+
 /* ---------- modal ---------- */
 
 .modal-backdrop[hidden] { display: none; }

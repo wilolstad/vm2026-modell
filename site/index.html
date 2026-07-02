@@ -44,6 +44,7 @@
       <button data-tab="upcoming" class="tab">Kommende</button>
       <button data-tab="results"  class="tab">Resultater</button>
       <button data-tab="all"      class="tab">Alle kamper</button>
+      <button data-tab="sim"      class="tab">Vinnersjanser</button>
       <button data-tab="power"    class="tab">Elo-rangering</button>
     </nav>
     <div class="chips" id="chips"></div>
@@ -69,7 +70,15 @@
       </div>
       <div>
         <h3>3 · Live in-play</h3>
-        <p>Under kamp reduseres forventet restproduksjon proporsjonalt med gjenstående spilletid, og modellen regner om vinnersannsynligheten gitt stillingen. I sluttspillet inkluderes ekstraomganger og straffer (50/50) i «videre»-sannsynligheten.</p>
+        <p>Under kamp reduseres forventet restproduksjon proporsjonalt med gjenstående spilletid, og vinnersannsynligheten regnes om gitt stillingen <em>og</em> kampbildet: skudd på mål, ballbesittelse og røde kort justerer restforventningen. I sluttspillet inkluderes ekstraomganger og straffer (50/50).</p>
+      </div>
+      <div>
+        <h3>4 · Vinnersjanser</h3>
+        <p>Resten av sluttspilltreet simuleres 4&nbsp;000 ganger med Poisson-trukne resultater (inkl. e.o. og straffer). Andelen simuleringer der et lag når kvartfinale, semifinale, finale eller tar tittelen gir sannsynlighetene i «Vinnersjanser»-fanen. Oppdateres etter hver spilte kamp.</p>
+      </div>
+      <div>
+        <h3>5 · Modell vs. marked</h3>
+        <p>Der ESPN-feeden har odds (DraftKings) vises markedets impliserte sannsynligheter — renset for bookmaker-margin — ved siden av modellens. Avviker modellen 6+ prosentpoeng fra markedet, flagges kampen med «value». Det betyr at modellen og markedet er uenige, ikke at modellen har rett.</p>
       </div>
     </div>
     <p class="method-note">Datakilde: ESPN (uoffisielt API). Modellens treffprosent på spilte kamper vises i toppen — prediksjonene er laget med ratingene slik de var <em>før</em> hver kamp, så tallet er ærlig out-of-sample. Ikke bruk dette som betting-råd.</p>
