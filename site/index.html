@@ -7,9 +7,9 @@
 <meta name="description" content="Live prediksjonsmodell for FIFA VM 2026 — Elo-ratinger, Poisson-modell og in-play vinnersannsynlighet for alle 104 kamper.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="styles.css">
-<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚽</text></svg>">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' fill='%23d4ff3f'/><text x='50' y='72' font-size='60' font-family='Arial Black,Arial' font-weight='900' text-anchor='middle' fill='%230c0f0b'>26</text></svg>">
 </head>
 <body>
 
@@ -26,11 +26,15 @@
   </div>
 </header>
 
+<div class="ticker" id="ticker" aria-hidden="true">
+  <div class="ticker-track" id="ticker-track"></div>
+</div>
+
 <main class="wrap">
 
   <section class="hero" id="hero">
-    <h1>FIFA World Cup 2026</h1>
-    <p class="hero-sub">Elo + Poisson-modell for alle 104 kamper — resultater, kommende kamper og live vinnersannsynlighet, rett fra ESPNs data-feed.</p>
+    <h1 class="masthead">VM<span class="outline">26</span> Prediktor</h1>
+    <p class="hero-sub">104 kamper. Én modell. Ingen følelser. <b>Elo × Poisson</b> på live data fra ESPN — prediksjoner før avspark, omregnet i sanntid mens ballen ruller.</p>
     <div class="stats" id="stats"></div>
   </section>
 

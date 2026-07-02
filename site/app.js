@@ -310,8 +310,38 @@ function render() {
   renderChips();
   renderContent();
   renderStatus();
+  renderTicker();
   $("last-updated").textContent =
     "Sist oppdatert " + new Date().toLocaleTimeString("nb-NO", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+}
+
+/* Broadcast-ticker: live -> siste resultater -> neste kamper med modellens favoritt. */
+function renderTicker() {
+  const el = $("ticker-track");
+  if (!el) return;
+  const items = [];
+  for (const m of S.matches.filter((x) => x.state === "in")) {
+    items.push(`<span class="tk live">LIVE ${esc(m.clock || "")} ${esc(m.home.abbr)} ${m.home.score}–${m.away.score} ${esc(m.away.abbr)}</span>`);
+  }
+  const done = S.matches.filter((m) => m.state === "post").sort((a, b) => b.date - a.date).slice(0, 10);
+  for (const m of done) {
+    const pens = m.pens ? ` <b>(${m.home.pens}–${m.away.pens} str.)</b>` : "";
+    items.push(`<span class="tk">SLUTT ${esc(m.home.abbr)} <b>${m.home.score}–${m.away.score}</b> ${esc(m.away.abbr)}${pens}</span>`);
+  }
+  const next = S.matches.filter((m) => m.state === "pre" && !m.home.tbd && !m.away.tbd)
+    .sort((a, b) => a.date - b.date).slice(0, 6);
+  for (const m of next) {
+    let tip = "";
+    if (m.pred) {
+      const o = predOutcome(m.pred);
+      const fav = o === "H" ? m.home.abbr : o === "A" ? m.away.abbr : "UAVGJORT";
+      const p = Math.max(m.pred.pH, m.pred.pD, m.pred.pA);
+      tip = ` · modellen: <b>${esc(fav)} ${pct(p)}</b>`;
+    }
+    items.push(`<span class="tk pre">${fmtTime(m.date)} ${esc(m.home.abbr)}–${esc(m.away.abbr)}${tip}</span>`);
+  }
+  const seq = items.map((i) => i + `<span class="tk-sep">///</span>`).join("");
+  el.innerHTML = seq + seq; // duplisert for sømløs loop
 }
 
 function renderStatus() {
@@ -456,7 +486,8 @@ function matchCard(m) {
   }
 
   const showProbs = p && m.state !== "post";
-  return `<article class="match ${m.state === "in" ? "is-live" : ""}" data-id="${m.id}">
+  const norge = m.home.name === "Norway" || m.away.name === "Norway" ? "is-norge" : "";
+  return `<article class="match ${m.state === "in" ? "is-live" : ""} ${norge}" data-id="${m.id}">
     <div class="match-meta"><span class="round">${roundLabel}</span>${statusHtml}</div>
     <div class="match-rows">
       ${teamRow(m.home, m.away, m, showProbs ? p.pH : null)}
