@@ -44,6 +44,7 @@
       <button data-tab="upcoming" class="tab">Kommende</button>
       <button data-tab="results"  class="tab">Resultater</button>
       <button data-tab="all"      class="tab">Alle kamper</button>
+      <button data-tab="bracket"  class="tab">Braketten</button>
       <button data-tab="sim"      class="tab">Vinnersjanser</button>
       <button data-tab="power"    class="tab">Elo-rangering</button>
     </nav>
@@ -66,7 +67,7 @@
       </div>
       <div>
         <h3>2 · Poisson-modell</h3>
-        <p>Elo-differansen mapper til forventet målproduksjon for hvert lag (snitt ≈ 2,55 mål per VM-kamp). En Poisson-fordeling over alle resultater gir sannsynlighet for seier, uavgjort og tap — pluss de mest sannsynlige sluttresultatene.</p>
+        <p>Elo-differansen mapper til forventet målproduksjon for hvert lag (snitt ≈ 2,55 mål per VM-kamp). En Poisson-fordeling over alle resultater gir sannsynlighet for seier, uavgjort og tap, med Dixon-Coles-korreksjon (ρ = −0,15, estimert på spilte VM-kamper) fordi ren Poisson undervurderer uavgjort.</p>
       </div>
       <div>
         <h3>3 · Live in-play</h3>

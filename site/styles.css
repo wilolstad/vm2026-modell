@@ -274,6 +274,74 @@ body {
   content: "🇳🇴"; font-size: 0.8rem;
 }
 
+/* ---------- braketten ---------- */
+
+.br-sec {
+  display: flex; align-items: center; gap: 14px;
+  font-family: var(--disp); font-size: 1.2rem; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.04em; color: var(--ink);
+  margin: 26px 0 14px;
+}
+.br-sec::after { content: ""; flex: 1; height: 1px; background: var(--line); }
+.br-sec .br-sub { font-family: var(--sans); font-size: 0.78rem; font-weight: 500; color: var(--ink-faint); text-transform: none; letter-spacing: 0; }
+
+.groups {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(175px, 1fr));
+  gap: 10px;
+}
+.gtable { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; }
+.gname { font-size: 0.72rem; font-weight: 700; color: var(--ink-faint); margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.08em; }
+.grow {
+  display: flex; align-items: center; gap: 7px; padding: 3px 0;
+  font-size: 0.82rem; color: var(--ink-faint);
+}
+.grow img { width: 16px; height: 16px; object-fit: contain; border-radius: 2px; }
+.grow .gn { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.grow .gd { font-family: var(--mono); font-size: 0.72rem; min-width: 26px; text-align: right; }
+.grow .gp { font-family: var(--mono); font-weight: 700; min-width: 20px; text-align: right; }
+.grow.adv { color: var(--ink); }
+.grow.adv .gp { color: var(--volt); }
+
+.bracket-scroll { overflow-x: auto; padding-bottom: 10px; }
+.bracket { display: flex; gap: 14px; min-width: 1250px; align-items: stretch; }
+.bcol { flex: 1; display: flex; flex-direction: column; min-width: 190px; }
+.bround {
+  font-size: 0.7rem; font-weight: 700; color: var(--ink-faint);
+  text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 10px; text-align: center;
+}
+.bcol-inner { flex: 1; display: flex; flex-direction: column; justify-content: space-around; gap: 8px; }
+
+.bmatch {
+  background: var(--panel); border: 1px solid var(--line); border-radius: 8px;
+  padding: 7px 9px; cursor: pointer; transition: border-color 0.12s ease;
+}
+.bmatch:hover { border-color: var(--volt-dim); }
+.bmatch.is-live { border-color: rgba(255, 69, 58, 0.55); }
+.bmatch.bronze { max-width: 300px; }
+
+.brow { display: flex; align-items: center; gap: 7px; padding: 2px 0; font-size: 0.8rem; }
+.brow img { width: 16px; height: 16px; object-fit: contain; border-radius: 2px; flex: 0 0 auto; }
+.brow .bph { width: 16px; height: 16px; border-radius: 2px; background: var(--panel-2); border: 1px dashed var(--line-hard); flex: 0 0 auto; }
+.brow .bn { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+.brow .bn .bslot { font-style: normal; font-family: var(--mono); font-size: 0.62rem; color: var(--ink-faint); font-weight: 500; }
+.brow .bs { font-family: var(--mono); font-weight: 700; }
+.brow .bs i { font-style: normal; color: var(--volt); font-size: 0.7rem; }
+.brow .bp { font-family: var(--mono); font-size: 0.72rem; color: var(--ink-faint); }
+.brow .bp.fav { color: var(--volt); font-weight: 600; }
+.brow.bwin .bn { color: var(--ink); }
+.brow.bloss { opacity: 0.5; }
+.brow.tbd .bn { color: var(--ink-dim); font-weight: 500; }
+
+.champ {
+  background: linear-gradient(160deg, rgba(212, 255, 63, 0.08), transparent 60%), var(--panel);
+  border: 1px solid var(--volt-dim); border-radius: 12px;
+  padding: 18px 14px; text-align: center;
+}
+.champ img { width: 44px; height: 44px; object-fit: contain; margin-bottom: 8px; }
+.champ .cn { font-family: var(--disp); font-size: 1.3rem; font-weight: 800; text-transform: uppercase; }
+.champ .cp { font-family: var(--mono); color: var(--volt); font-weight: 700; font-size: 1.05rem; margin-top: 2px; }
+.champ .crest { font-size: 0.7rem; color: var(--ink-faint); margin-top: 10px; }
+
 /* ---------- value-badge ---------- */
 
 .value-badge {

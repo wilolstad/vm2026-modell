@@ -90,20 +90,34 @@ function lambdas(eloH, eloA) {
   };
 }
 
+/* Dixon-Coles-korreksjon: ren Poisson undervurderer uavgjort fordi målene
+   antas uavhengige. Tau justerer de fire lavscore-cellene. ρ = −0,15,
+   estimert med grid-search på spilte VM-kamper (logloss 0,810 → 0,798). */
+const RHO = -0.15;
+function dcTau(h, a, lh, la) {
+  if (h === 0 && a === 0) return 1 - lh * la * RHO;
+  if (h === 0 && a === 1) return 1 + lh * RHO;
+  if (h === 1 && a === 0) return 1 + la * RHO;
+  if (h === 1 && a === 1) return 1 - RHO;
+  return 1;
+}
+
 /* Poisson-grid: P(hjemmeseier), P(uavgjort), P(borteseier) + toppresultater.
-   baseH/baseA = mål som allerede står (live). */
-function grid(lh, la, baseH = 0, baseA = 0) {
+   baseH/baseA = mål som allerede står (live). dc = Dixon-Coles på hele kampen. */
+function grid(lh, la, baseH = 0, baseA = 0, dc = false) {
   let pH = 0, pD = 0, pA = 0;
   const scores = [];
   for (let h = 0; h <= MAX_G; h++) {
     const ph = poisson(h, lh);
     for (let a = 0; a <= MAX_G; a++) {
-      const p = ph * poisson(a, la);
+      let p = ph * poisson(a, la);
+      if (dc) p *= dcTau(h, a, lh, la);
       const th = baseH + h, ta = baseA + a;
       if (th > ta) pH += p; else if (th < ta) pA += p; else pD += p;
       scores.push({ h: th, a: ta, p });
     }
   }
+  const tot = pH + pD + pA;
   // slå sammen like sluttresultater (relevant ved base-mål)
   const merged = {};
   for (const s of scores) {
@@ -111,10 +125,9 @@ function grid(lh, la, baseH = 0, baseA = 0) {
     merged[key] = (merged[key] || 0) + s.p;
   }
   const top = Object.entries(merged)
-    .map(([k, p]) => ({ k, p }))
+    .map(([k, p]) => ({ k, p: p / tot }))
     .sort((a, b) => b.p - a.p)
     .slice(0, 5);
-  const tot = pH + pD + pA;
   return { pH: pH / tot, pD: pD / tot, pA: pA / tot, top };
 }
 
@@ -122,7 +135,7 @@ function grid(lh, la, baseH = 0, baseA = 0) {
    (ekstraomganger = 1/3 intensitet, straffer 50/50). */
 function predict(eloH, eloA, knockout) {
   const { lh, la } = lambdas(eloH, eloA);
-  const g = grid(lh, la);
+  const g = grid(lh, la, 0, 0, true);
   let adv = null;
   if (knockout) {
     const et = grid(lh / 3, la / 3);
@@ -369,6 +382,8 @@ function simulate(runs) {
 
   const reach = {};
   const ensure = (t) => reach[t] || (reach[t] = { qf: 0, sf: 0, f: 0, w: 0 });
+  const detail = {}; // matchId -> {home:{lag:antall}, away:{...}, win:{...}} for braketten
+  const bump = (o, k) => { o[k] = (o[k] || 0) + 1; };
 
   for (let i = 0; i < runs; i++) {
     const winners = {}, losers = {};
@@ -399,6 +414,8 @@ function simulate(runs) {
         }
         winners[m.id] = hWins ? hN : aN;
         losers[m.id] = hWins ? aN : hN;
+        const dd = detail[m.id] || (detail[m.id] = { home: {}, away: {}, win: {} });
+        bump(dd.home, hN); bump(dd.away, aN); bump(dd.win, winners[m.id]);
       }
     }
     for (const m of byRound["round-of-16"]) if (winners[m.id]) ensure(winners[m.id]).qf++;
@@ -408,6 +425,7 @@ function simulate(runs) {
     if (winners[fin.id]) ensure(winners[fin.id]).w++;
   }
 
+  S.simDetail = { runs, byId: detail };
   return Object.entries(reach)
     .map(([t, c]) => ({ t, qf: c.qf / runs, sf: c.sf / runs, f: c.f / runs, w: c.w / runs }))
     .sort((a, b) => b.w - a.w || b.f - a.f || b.sf - a.sf);
@@ -517,7 +535,7 @@ function renderStats() {
 
 function renderChips() {
   const el = $("chips");
-  if (S.tab === "power" || S.tab === "sim") { el.innerHTML = ""; return; }
+  if (S.tab === "power" || S.tab === "sim" || S.tab === "bracket") { el.innerHTML = ""; return; }
   const chips = [["all", "Alle runder"], ...ROUND_ORDER.map((r) => [r, ROUND_NO[r]])];
   el.innerHTML = chips
     .map(([v, l]) => `<button class="chip ${S.round === v ? "active" : ""}" data-round="${v}">${l}</button>`)
@@ -545,6 +563,7 @@ function renderContent() {
   const el = $("content");
   if (S.tab === "power") { el.innerHTML = powerHTML(); return; }
   if (S.tab === "sim") { el.innerHTML = simHTML(); return; }
+  if (S.tab === "bracket") { el.innerHTML = bracketHTML(); return; }
   const ms = visibleMatches();
   if (!ms.length) {
     el.innerHTML = `<div class="empty">Ingen kamper her${S.tab === "today" ? " i dag — sjekk «Kommende»" : ""}.</div>`;
@@ -686,6 +705,136 @@ function simHTML() {
         <td class="sim-barcol"><div class="sim-bar"><i style="width:${(r.w / maxW) * 100}%"></i></div></td>
       </tr>`).join("")}
     </tbody></table>`;
+}
+
+/* ---------- braketten: gruppespill -> mester ---------- */
+
+function groupTables() {
+  const g = {};
+  for (const m of S.matches) {
+    if (m.round !== "group-stage" || m.state !== "post" || !m.group) continue;
+    const t = g[m.group] || (g[m.group] = {});
+    for (const [me, opp] of [[m.home, m.away], [m.away, m.home]]) {
+      const r = t[me.name] || (t[me.name] = { team: me, p: 0, gf: 0, ga: 0, pts: 0 });
+      r.p++; r.gf += me.score; r.ga += opp.score;
+      r.pts += me.score > opp.score ? 3 : me.score < opp.score ? 0 : 1;
+    }
+  }
+  return Object.keys(g).sort().map((k) => ({
+    name: k,
+    rows: Object.values(g[k]).sort((a, b) => b.pts - a.pts || (b.gf - b.ga) - (a.gf - a.ga) || b.gf - a.gf),
+  }));
+}
+
+const BR_ROUNDS = [
+  ["round-of-32", "Sekstendedelsfinaler"],
+  ["round-of-16", "Åttedelsfinaler"],
+  ["quarterfinals", "Kvartfinaler"],
+  ["semifinals", "Semifinaler"],
+  ["final", "Finale"],
+];
+
+function bracketHTML() {
+  const det = S.simDetail;
+  if (!det) return `<div class="empty">Braketten kommer når simuleringen er kjørt.</div>`;
+  const runs = det.runs;
+
+  // lag som gikk videre fra gruppespillet
+  const advanced = new Set();
+  for (const m of S.matches) {
+    if (!m.knockout) continue;
+    if (!m.home.tbd) advanced.add(m.home.name);
+    if (!m.away.tbd) advanced.add(m.away.name);
+  }
+
+  const groups = groupTables();
+  const groupsHtml = groups.length ? `
+    <div class="br-sec">Gruppespillet <span class="br-sub">· lag i grønt gikk videre</span></div>
+    <div class="groups">${groups.map((gr) => `
+      <div class="gtable">
+        <div class="gname">${esc(gr.name)}</div>
+        ${gr.rows.map((r) => `
+          <div class="grow ${advanced.has(r.team.name) ? "adv" : ""}">
+            ${r.team.logo ? `<img src="${r.team.logo}" alt="">` : ""}
+            <span class="gn">${esc(r.team.no)}</span>
+            <span class="gd">${r.gf - r.ga > 0 ? "+" : ""}${r.gf - r.ga}</span>
+            <span class="gp">${r.pts}</span>
+          </div>`).join("")}
+      </div>`).join("")}
+    </div>` : "";
+
+  // slot-rad i en brakettkamp
+  const slotRow = (m, side, t) => {
+    const d = det.byId[m.id];
+    if (!t.tbd) {
+      const winP = d && m.state !== "post" ? (d.win[t.name] || 0) / runs : null;
+      const isW = m.state === "post" && t.winner;
+      const isL = m.state === "post" && !t.winner && (t.score !== (side === "home" ? m.away : m.home).score || m.pens);
+      const score = m.state === "post" ? `<span class="bs">${t.score}${m.pens && t.pens != null ? ` <i>(${t.pens})</i>` : ""}</span>` : "";
+      const pctS = winP != null ? `<span class="bp ${winP >= 0.5 ? "fav" : ""}">${pct(winP)}</span>` : "";
+      return `<div class="brow ${isW ? "bwin" : ""} ${isL ? "bloss" : ""}">
+        ${t.logo ? `<img src="${t.logo}" alt="">` : `<span class="bph"></span>`}
+        <span class="bn">${esc(t.no)}</span>${score}${pctS}</div>`;
+    }
+    // TBD: mest sannsynlige lag i slotten fra simuleringen
+    const counts = d ? d[side] : null;
+    const top = counts ? Object.entries(counts).sort((a, b) => b[1] - a[1])[0] : null;
+    if (!top) return `<div class="brow tbd"><span class="bph"></span><span class="bn">${esc(t.no)}</span></div>`;
+    const [name, cnt] = top;
+    const winP = (d.win[name] || 0) / runs;
+    return `<div class="brow tbd">
+      ${teamLogo(name) ? `<img src="${teamLogo(name)}" alt="">` : `<span class="bph"></span>`}
+      <span class="bn">${esc(teamNo(name))} <i class="bslot">${Math.round((cnt / runs) * 100)} %</i></span>
+      <span class="bp ${winP >= 0.5 ? "fav" : ""}">${pct(winP)}</span></div>`;
+  };
+
+  const cols = BR_ROUNDS.map(([slug, label]) => {
+    const ms = S.matches.filter((m) => m.round === slug).sort((a, b) => a.date - b.date);
+    return `<div class="bcol">
+      <div class="bround">${label}</div>
+      <div class="bcol-inner">
+      ${ms.map((m) => `<div class="bmatch ${m.state === "in" ? "is-live" : ""}" data-id="${m.id}">
+        ${slotRow(m, "home", m.home)}
+        ${slotRow(m, "away", m.away)}
+      </div>`).join("")}
+      </div>
+    </div>`;
+  }).join("");
+
+  // mester-kolonne fra finalens vinnerfordeling
+  const fin = S.matches.find((m) => m.round === "final");
+  const wd = fin && det.byId[fin.id] ? det.byId[fin.id].win : null;
+  let champHtml = "";
+  if (wd) {
+    const top3 = Object.entries(wd).sort((a, b) => b[1] - a[1]).slice(0, 3);
+    const [cn, cc] = top3[0];
+    champHtml = `<div class="bcol">
+      <div class="bround">Mester</div>
+      <div class="bcol-inner">
+      <div class="champ">
+        ${teamLogo(cn) ? `<img src="${teamLogo(cn)}" alt="">` : ""}
+        <div class="cn">${esc(teamNo(cn))}</div>
+        <div class="cp">${pct(cc / runs)}</div>
+        <div class="crest">${top3.slice(1).map(([n, c]) => `${esc(teamNo(n))} ${pct(c / runs)}`).join(" · ")}</div>
+      </div>
+      </div>
+    </div>`;
+  }
+
+  const bronze = S.matches.find((m) => m.round === "3rd-place-match");
+  const bronzeHtml = bronze ? `
+    <div class="br-sec" style="margin-top:26px">Bronsefinale</div>
+    <div class="bmatch bronze" data-id="${bronze.id}">
+      ${slotRow(bronze, "home", bronze.home)}
+      ${slotRow(bronze, "away", bronze.away)}
+    </div>` : "";
+
+  return `
+    <p class="sim-intro">Hele veien fra gruppespill til mester slik modellen ser den. Prosentene på kommende kamper er sjansen for å <b>vinne kampen</b> (fra ${runs.toLocaleString("nb-NO")} simuleringer); på uavklarte plasser vises det mest sannsynlige laget med sjansen for å <b>stå i kampen</b>. Klikk på en kamp for detaljer.</p>
+    ${groupsHtml}
+    <div class="br-sec">Sluttspillet</div>
+    <div class="bracket-scroll"><div class="bracket">${cols}${champHtml}</div></div>
+    ${bronzeHtml}`;
 }
 
 /* value-flagg: modellen avviker 6+ pp fra markedet på et utfall */
@@ -892,7 +1041,7 @@ document.addEventListener("click", (e) => {
     renderContent();
     return;
   }
-  const card = e.target.closest(".match");
+  const card = e.target.closest(".match, .bmatch");
   if (card) {
     const m = S.matches.find((x) => x.id === card.dataset.id);
     if (m) openModal(m);
