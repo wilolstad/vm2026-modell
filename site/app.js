@@ -9,7 +9,8 @@ const API =
   "?dates=20260611-20260719&limit=200";
 const SUMMARY_API =
   "https://site.api.espn.com/apis/site/v2/sports/soccer/fifa.world/summary?event=";
-const SIM_RUNS = 4000;
+const SIM_RUNS = 50000;
+const SIM_CHUNK = 5000; // yield til UI-tråden mellom chunks
 
 /* Start-Elo (≈ eloratings.net før mesterskapet). Oppdateres live av spilte kamper. */
 const ELO_SEED = {
@@ -355,6 +356,88 @@ function replayElo() {
   }
 }
 
+/* ---------- lagstatistikk: corner- og kortrater fra spilte kamper ---------- */
+
+const STATS_KEY = "vm26_teamstats_v1";
+
+async function buildTeamStats() {
+  const st = JSON.parse(localStorage.getItem(STATS_KEY) || "null") || { done: [], teams: {} };
+  const doneSet = new Set(st.done);
+  const todo = S.matches.filter((m) => m.state === "post" && !m.home.tbd && !m.away.tbd && !doneSet.has(m.id));
+
+  for (let i = 0; i < todo.length; i += 8) {
+    const batch = todo.slice(i, i + 8);
+    await Promise.all(batch.map((m) => S.summaries[m.id] ? null : fetchSummary(m.id)));
+    for (const m of batch) {
+      const sum = S.summaries[m.id];
+      const sh = sum?.stat?.[m.home.id], sa = sum?.stat?.[m.away.id];
+      if (!sh || !sa || sh.corners == null) continue;
+      const add = (name, own, opp) => {
+        const t = st.teams[name] || (st.teams[name] = { g: 0, cf: 0, ca: 0, y: 0 });
+        t.g++; t.cf += own.corners || 0; t.ca += opp.corners || 0; t.y += own.yellow || 0;
+      };
+      add(m.home.name, sh, sa);
+      add(m.away.name, sa, sh);
+      st.done.push(m.id);
+    }
+  }
+  try { localStorage.setItem(STATS_KEY, JSON.stringify(st)); } catch { /* full/privat modus */ }
+  S.teamStats = st;
+}
+
+/* Poisson-baserte markeder for en kommende kamp: mål-O/U + BTTS fra
+   målmodellen, cornere og gule kort fra lagenes turneringsrater
+   (attack x defense-justert, krympet mot snittet ved få kamper). */
+function markets(m) {
+  const eloH = teamElo(m.home.name) + hostBonus(m.home.name);
+  const { lh, la } = lambdas(eloH, teamElo(m.away.name));
+
+  // mål: over 2,5 og begge lag scorer, med Dixon-Coles
+  let pO25 = 0, pBTTS = 0;
+  for (let h = 0; h <= MAX_G; h++) {
+    for (let a = 0; a <= MAX_G; a++) {
+      const p = poisson(h, lh) * poisson(a, la) * dcTau(h, a, lh, la);
+      if (h + a > 2.5) pO25 += p;
+      if (h > 0 && a > 0) pBTTS += p;
+    }
+  }
+
+  let corners = null, cards = null;
+  const ts = S.teamStats?.teams;
+  const A = ts?.[m.home.name], B = ts?.[m.away.name];
+  if (A && B && A.g >= 2 && B.g >= 2) {
+    const all = Object.values(ts).filter((t) => t.g > 0);
+    const avgC = all.reduce((s, t) => s + t.cf, 0) / all.reduce((s, t) => s + t.g, 0); // per lag per kamp
+    const avgY = all.reduce((s, t) => s + t.y, 0) / all.reduce((s, t) => s + t.g, 0);
+    const K = 2; // pseudo-kamper shrinkage
+    const rate = (num, g, avg) => (num + K * avg) / (g + K);
+    const lcA = rate(A.cf, A.g, avgC) * (rate(B.ca, B.g, avgC) / avgC);
+    const lcB = rate(B.cf, B.g, avgC) * (rate(A.ca, A.g, avgC) / avgC);
+    const lcT = lcA + lcB;
+    const line = Math.round(lcT) - 0.5;
+    let pOver = 0;
+    for (let k = 0; k <= 30; k++) if (k > line) pOver += poisson(k, lcT);
+    // flest cornere: P(A > B) over uavhengige Poisson
+    let pAflest = 0, pLikt = 0;
+    for (let x = 0; x <= 25; x++) {
+      const px = poisson(x, lcA);
+      for (let y = 0; y <= 25; y++) {
+        const p = px * poisson(y, lcB);
+        if (x > y) pAflest += p; else if (x === y) pLikt += p;
+      }
+    }
+    corners = { lcA, lcB, lcT, line, pOver, pAflest, pBflest: 1 - pAflest - pLikt };
+
+    const lyT = rate(A.y, A.g, avgY) + rate(B.y, B.g, avgY);
+    const lineY = Math.round(lyT) + 0.5;
+    let pOverY = 0;
+    for (let k = 0; k <= 20; k++) if (k > lineY) pOverY += poisson(k, lyT);
+    cards = { lyT, lineY, pOverY };
+  }
+
+  return { pO25, pBTTS, corners, cards };
+}
+
 /* ---------- Monte Carlo: simuler resten av sluttspillet ---------- */
 
 function samplePoisson(lam) {
@@ -447,7 +530,7 @@ function koSources() {
 
 /* Plassholderne («Round of 32 11 Winner») refererer kamp nr. N i runden,
    kronologisk — verifisert mot spilte kamper. */
-function simulate(runs) {
+async function simulate(runs) {
   const { srcs, by: byRound } = koSources();
   if (!byRound["final"].length) return null;
 
@@ -457,6 +540,7 @@ function simulate(runs) {
   const bump = (o, k) => { o[k] = (o[k] || 0) + 1; };
 
   for (let i = 0; i < runs; i++) {
+    if (i > 0 && i % SIM_CHUNK === 0) await new Promise((r) => setTimeout(r, 0));
     const winners = {}, losers = {};
     const resolve = (s) => s.fixed || (s.ref ? (s.loser ? losers[s.ref] : winners[s.ref]) : null);
 
@@ -625,9 +709,14 @@ function visibleMatches() {
 
 function renderContent() {
   const el = $("content");
-  if (S.tab === "power") { el.innerHTML = powerHTML(); return; }
+  if (S.tab === "power") { el.innerHTML = `<div class="table-scroll">${powerHTML()}</div>`; return; }
   if (S.tab === "sim") { el.innerHTML = simHTML(); return; }
-  if (S.tab === "bracket") { el.innerHTML = bracketHTML(); return; }
+  if (S.tab === "bracket") {
+    el.innerHTML = bracketHTML();
+    const bs = el.querySelector(".bracket-scroll");
+    if (bs) bs.scrollLeft = (bs.scrollWidth - bs.clientWidth) / 2; // start ved finalen
+    return;
+  }
   const ms = visibleMatches();
   if (!ms.length) {
     el.innerHTML = `<div class="empty">Ingen kamper her${S.tab === "today" ? " i dag — sjekk «Kommende»" : ""}.</div>`;
@@ -756,7 +845,7 @@ function simHTML() {
   const maxW = S.sim[0].w || 1;
   return `
     <p class="sim-intro">Resten av sluttspillet simulert ${SIM_RUNS.toLocaleString("nb-NO")} ganger med dagens Elo-ratinger. Oppdateres etter hver spilte kamp.</p>
-    <table class="power-table sim-table">
+    <div class="table-scroll"><table class="power-table sim-table">
     <thead><tr><th></th><th>Lag</th><th style="text-align:right">Kvartfinale</th><th style="text-align:right">Semifinale</th><th style="text-align:right">Finale</th><th style="text-align:right">Vinner VM</th><th class="sim-barcol"></th></tr></thead>
     <tbody>${S.sim.map((r, i) => `
       <tr class="${r.t === "Norway" ? "sim-norge" : ""}">
@@ -768,7 +857,7 @@ function simHTML() {
         <td class="num win">${fp(r.w)}</td>
         <td class="sim-barcol"><div class="sim-bar"><i style="width:${(r.w / maxW) * 100}%"></i></div></td>
       </tr>`).join("")}
-    </tbody></table>`;
+    </tbody></table></div>`;
 }
 
 /* ---------- braketten: gruppespill -> mester ---------- */
@@ -1049,6 +1138,28 @@ function openModal(m) {
       ${edge ? `<p class="mvm-note">Modellen tror mer på ${edge.team ? esc(edge.team.no) : "uavgjort"} enn markedet gjør. Det betyr at de er uenige — ikke at modellen har rett.</p>` : ""}`;
   }
 
+  // andre markeder (kun kommende kamper med kjente lag)
+  let marketsHtml = "";
+  if (m.state === "pre" && !m.home.tbd && !m.away.tbd) {
+    const mk = markets(m);
+    const fmt1 = (x) => x.toFixed(1).replace(".", ",");
+    const rows = [
+      `<div class="mkt-row"><span>Over 2,5 mål</span><b>${pct(mk.pO25)}</b><span>Under</span><b>${pct(1 - mk.pO25)}</b></div>`,
+      `<div class="mkt-row"><span>Begge lag scorer</span><b>${pct(mk.pBTTS)}</b><span>Nei</span><b>${pct(1 - mk.pBTTS)}</b></div>`,
+    ];
+    if (mk.corners) {
+      rows.push(`<div class="mkt-row"><span>Cornere over ${String(mk.corners.line).replace(".", ",")}</span><b>${pct(mk.corners.pOver)}</b><span>Forventet</span><b>${fmt1(mk.corners.lcT)}</b></div>`);
+      rows.push(`<div class="mkt-row"><span>Flest cornere: ${esc(m.home.no)}</span><b>${pct(mk.corners.pAflest)}</b><span>${esc(m.away.no)}</span><b>${pct(mk.corners.pBflest)}</b></div>`);
+    }
+    if (mk.cards) {
+      rows.push(`<div class="mkt-row"><span>Gule kort over ${String(mk.cards.lineY).replace(".", ",")}</span><b>${pct(mk.cards.pOverY)}</b><span>Forventet</span><b>${fmt1(mk.cards.lyT)}</b></div>`);
+    }
+    marketsHtml = `
+      <div class="m-sec">Andre markeder</div>
+      ${rows.join("")}
+      ${!mk.corners ? `<p class="mvm-note">Corner- og kortmodellen trenger lagenes turneringsdata — lastes i bakgrunnen, prøv igjen om litt.</p>` : ""}`;
+  }
+
   // kampstatistikk + målscorere fra summary-API
   let statsHtml = "";
   const sum = S.summaries[m.id];
@@ -1093,6 +1204,7 @@ function openModal(m) {
     <div class="m-when">${m.state === "pre" ? "" : cap(fmtDayKey(m.date)) + " · " + fmtTime(m.date)}</div>
     ${probsHtml}
     ${marketHtml}
+    ${marketsHtml}
     ${statsHtml}
     <div class="m-venue">${esc(m.venue)}${m.city ? " · " + esc(m.city) : ""}</div>`;
   $("modal").hidden = false;
@@ -1117,8 +1229,23 @@ async function load() {
     // hent kampstatistikk for pågående kamper før live-modellen regnes
     await Promise.all(S.matches.filter((m) => m.state === "in").map((m) => fetchSummary(m.id)));
     replayElo();
-    S.sim = simulate(SIM_RUNS);
     render();
+
+    // 50k-simuleringen er ~0,5-2s: kjør chunked, og bare når resultatbildet
+    // eller sluttspill-slots faktisk har endret seg
+    const hash = S.matches
+      .filter((m) => m.state === "post" || m.knockout)
+      .map((m) => m.id + ":" + m.home.name + m.home.score + "-" + m.away.name + m.away.score + m.state)
+      .join("|");
+    if (hash !== S.simHash) {
+      S.simHash = hash;
+      simulate(SIM_RUNS).then((table) => {
+        if (!table) return;
+        S.sim = table;
+        if (S.tab === "sim" || S.tab === "bracket") renderContent();
+      });
+    }
+    buildTeamStats(); // corner-/kortrater i bakgrunnen (cachet i localStorage)
   } catch (err) {
     console.error(err);
     $("status-dot").className = "dot dot-err";
