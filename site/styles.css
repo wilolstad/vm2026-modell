@@ -302,24 +302,49 @@ body {
 .grow.adv { color: var(--ink); }
 .grow.adv .gp { color: var(--volt); }
 
-.bracket-scroll { overflow-x: auto; padding-bottom: 10px; }
-.bracket { display: flex; gap: 14px; min-width: 1250px; align-items: stretch; }
-.bcol { flex: 1; display: flex; flex-direction: column; min-width: 190px; }
+.norge-path {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
+  padding: 10px 16px; margin-bottom: 20px; font-size: 0.85rem; color: var(--ink-dim);
+}
+.norge-path .np-label { font-weight: 700; color: var(--ink); }
+.norge-path .np-step b { color: var(--volt); font-family: var(--mono); font-weight: 600; }
+.norge-path .np-arrow { color: var(--ink-faint); }
+
+.bracket-scroll { overflow-x: auto; padding-bottom: 12px; }
+.bracket { display: flex; gap: 12px; min-width: 1250px; align-items: stretch; }
+.bracket.b2 { min-width: 1560px; }
+.bcol { flex: 1; display: flex; flex-direction: column; min-width: 150px; }
+.bracket.b2 .bcol { min-width: 156px; }
+.bracket.b2 .bcenter { min-width: 200px; }
 .bround {
-  font-size: 0.7rem; font-weight: 700; color: var(--ink-faint);
+  font-size: 0.66rem; font-weight: 700; color: var(--ink-faint);
   text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 10px; text-align: center;
 }
 .bcol-inner { flex: 1; display: flex; flex-direction: column; justify-content: space-around; gap: 8px; }
+.bcenter-inner { justify-content: center; gap: 14px; }
 
 .bmatch {
+  position: relative;
   background: var(--panel); border: 1px solid var(--line); border-radius: 8px;
-  padding: 7px 9px; cursor: pointer; transition: border-color 0.12s ease;
+  padding: 6px 8px; cursor: pointer; transition: border-color 0.12s ease;
 }
 .bmatch:hover { border-color: var(--volt-dim); }
 .bmatch.is-live { border-color: rgba(255, 69, 58, 0.55); }
-.bmatch.bronze { max-width: 300px; }
+.bmatch.bfinal { border-color: var(--line-hard); box-shadow: 0 0 0 1px var(--line-hard); }
 
-.brow { display: flex; align-items: center; gap: 7px; padding: 2px 0; font-size: 0.8rem; }
+/* koblingsstubber mot midten */
+.half-l .bmatch::after, .half-r .bmatch::before {
+  content: ""; position: absolute; top: 50%; width: 12px; height: 1px;
+  background: var(--line-hard);
+}
+.half-l .bmatch::after { right: -13px; }
+.half-r .bmatch::before { left: -13px; }
+
+.bronze-wrap { margin-top: 18px; }
+.bronze-wrap .bround { margin-bottom: 6px; }
+
+.brow { display: flex; align-items: center; gap: 6px; padding: 2px 0; font-size: 0.76rem; }
 .brow img { width: 16px; height: 16px; object-fit: contain; border-radius: 2px; flex: 0 0 auto; }
 .brow .bph { width: 16px; height: 16px; border-radius: 2px; background: var(--panel-2); border: 1px dashed var(--line-hard); flex: 0 0 auto; }
 .brow .bn { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }

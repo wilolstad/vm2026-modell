@@ -370,14 +370,85 @@ const REF_ROUND = {
   "Quarterfinal": "quarterfinals", "Semifinal": "semifinals",
 };
 const SIM_ROUNDS = ["round-of-32", "round-of-16", "quarterfinals", "semifinals", "3rd-place-match", "final"];
+const PREV_OF = {
+  "final": "semifinals", "3rd-place-match": "semifinals", "semifinals": "quarterfinals",
+  "quarterfinals": "round-of-16", "round-of-16": "round-of-32",
+};
+
+/* Slot-kilder for hele sluttspillet: {fixed: navn} eller {ref: kampId, loser}.
+   To ESPN-særheter håndteres:
+   1) Slots pre-fylles (med winner-flagg) mens feeder-kampen pågår — et navn er
+      derfor bare «fast» når feeder-kampen er ferdigspilt.
+   2) Pre-fyllingen kan lande i feil slot (sett live: «R32 11 Winner vs Spania»
+      der Spania sto i kamp 11 og slotten egentlig var «R32 12 Winner»).
+      Repareres med eliminasjon: kolliderer to slots om samme feeder, flyttes
+      den pre-fylte til den eneste ukonsumerte kampen i forrige runde. */
+function koSources() {
+  const by = {};
+  for (const r of SIM_ROUNDS) by[r] = S.matches.filter((m) => m.round === r).sort((a, b) => a.date - b.date);
+
+  const srcs = {};
+  for (const r of SIM_ROUNDS) {
+    const prev = by[PREV_OF[r]] || [];
+    const claims = {};   // "id:W"/"id:L" -> [soft-kilder]
+    const consumed = new Set();
+
+    for (const m of by[r]) {
+      srcs[m.id] = {};
+      for (const side of ["home", "away"]) {
+        const t = m[side];
+        let s, feederId = null, kind = "W";
+        if (t.tbd) {
+          const mm = t.name.match(REF_RE);
+          const f = mm ? by[REF_ROUND[mm[1]]][+mm[2] - 1] : null;
+          s = f ? { ref: f.id, loser: mm[3] === "Loser", hard: true } : {};
+          if (f) { feederId = f.id; kind = s.loser ? "L" : "W"; }
+        } else {
+          const f = prev.find((pm) => pm.home.name === t.name || pm.away.name === t.name);
+          if (f && f.state !== "post") {
+            s = { ref: f.id, loser: false, movable: true };
+            feederId = f.id;
+          } else {
+            s = { fixed: t.name };
+            if (f) {
+              feederId = f.id;
+              const wn = f.home.winner ? f.home.name : f.away.winner ? f.away.name : null;
+              kind = wn === t.name ? "W" : "L";
+              s.movable = true; // pre-fyll kan ligge i feil slot selv etter kampslutt
+            }
+          }
+        }
+        srcs[m.id][side] = s;
+        if (feederId) {
+          consumed.add(feederId);
+          const key = feederId + ":" + kind;
+          (claims[key] || (claims[key] = [])).push(s);
+        }
+      }
+    }
+
+    // eliminasjons-reparasjon: ved kollisjon flyttes den flyttbare (pre-fylte)
+    // kilden til den eneste ukonsumerte kampen i forrige runde
+    for (const list of Object.values(claims)) {
+      if (list.length < 2) continue;
+      const movable = list.filter((s) => s.movable && !s.hard);
+      const un = prev.filter((p) => !consumed.has(p.id));
+      if (movable.length === 1 && un.length === 1) {
+        const s = movable[0];
+        delete s.fixed;
+        s.ref = un[0].id;
+        s.loser = false;
+        consumed.add(un[0].id);
+      }
+    }
+  }
+  return { srcs, by };
+}
 
 /* Plassholderne («Round of 32 11 Winner») refererer kamp nr. N i runden,
    kronologisk — verifisert mot spilte kamper. */
 function simulate(runs) {
-  const byRound = {};
-  for (const r of SIM_ROUNDS) {
-    byRound[r] = S.matches.filter((m) => m.round === r).sort((a, b) => a.date - b.date);
-  }
+  const { srcs, by: byRound } = koSources();
   if (!byRound["final"].length) return null;
 
   const reach = {};
@@ -387,14 +458,7 @@ function simulate(runs) {
 
   for (let i = 0; i < runs; i++) {
     const winners = {}, losers = {};
-    const resolve = (t) => {
-      if (!t.tbd) return t.name;
-      const mm = t.name.match(REF_RE);
-      if (!mm) return null;
-      const src = byRound[REF_ROUND[mm[1]]][+mm[2] - 1];
-      if (!src) return null;
-      return mm[3] === "Winner" ? winners[src.id] : losers[src.id];
-    };
+    const resolve = (s) => s.fixed || (s.ref ? (s.loser ? losers[s.ref] : winners[s.ref]) : null);
 
     for (const r of SIM_ROUNDS) {
       for (const m of byRound[r]) {
@@ -402,7 +466,7 @@ function simulate(runs) {
         if (m.state === "post" && !m.home.tbd && !m.away.tbd) {
           hN = m.home.name; aN = m.away.name; hWins = m.home.winner;
         } else {
-          hN = resolve(m.home); aN = resolve(m.away);
+          hN = resolve(srcs[m.id].home); aN = resolve(srcs[m.id].away);
           if (!hN || !aN) continue;
           const { lh, la } = lambdas(teamElo(hN) + hostBonus(hN), teamElo(aN));
           const gh = samplePoisson(lh), ga = samplePoisson(la);
@@ -726,13 +790,39 @@ function groupTables() {
   }));
 }
 
-const BR_ROUNDS = [
-  ["round-of-32", "Sekstendedelsfinaler"],
-  ["round-of-16", "Åttedelsfinaler"],
-  ["quarterfinals", "Kvartfinaler"],
-  ["semifinals", "Semifinaler"],
-  ["final", "Finale"],
-];
+/* Rekonstruer sluttspilltreet. For uavklarte slots peker plassholderen
+   («Round of 32 11 Winner») på feeder-kampen; for avklarte finner vi
+   feederen via laget som vant den. */
+function bracketTree() {
+  const { srcs, by } = koSources();
+  const byId = {};
+  for (const r of SIM_ROUNDS) for (const m of by[r]) byId[m.id] = m;
+  const feeder = (m, side) => {
+    const s = srcs[m.id]?.[side];
+    if (!s) return null;
+    if (s.ref) return byId[s.ref] || null;
+    // fast navn: finn den ferdigspilte feeder-kampen laget deltok i
+    const prev = by[PREV_OF[m.round]] || [];
+    return prev.find((pm) => pm.home.name === s.fixed || pm.away.name === s.fixed) || null;
+  };
+  const fin = by["final"][0];
+  if (!fin) return null;
+  const half = (sf) => {
+    if (!sf) return null;
+    const qfs = [feeder(sf, "home"), feeder(sf, "away")];
+    const r16s = qfs.flatMap((qf) => qf ? [feeder(qf, "home"), feeder(qf, "away")] : [null, null]);
+    const r32s = r16s.flatMap((r) => r ? [feeder(r, "home"), feeder(r, "away")] : [null, null]);
+    if (qfs.some((x) => !x) || r16s.some((x) => !x) || r32s.some((x) => !x)) return null;
+    return { sf, qfs, r16s, r32s };
+  };
+  const L = half(feeder(fin, "home"));
+  const R = half(feeder(fin, "away"));
+  if (!L || !R) return null;
+  // guard mot ESPN-glitcher: hver kamp skal forekomme nøyaktig én gang i treet
+  const all = [fin, L.sf, R.sf, ...L.qfs, ...R.qfs, ...L.r16s, ...R.r16s, ...L.r32s, ...R.r32s];
+  if (new Set(all.map((m) => m.id)).size !== all.length) return null;
+  return { fin, L, R, bronze: by["3rd-place-match"][0] || null };
+}
 
 function bracketHTML() {
   const det = S.simDetail;
@@ -766,18 +856,20 @@ function bracketHTML() {
   // slot-rad i en brakettkamp
   const slotRow = (m, side, t) => {
     const d = det.byId[m.id];
-    if (!t.tbd) {
+    const counts = d ? d[side] : null;
+    const settled = m.state === "post" || (counts && Object.keys(counts).length === 1);
+
+    if (settled && !t.tbd) {
       const winP = d && m.state !== "post" ? (d.win[t.name] || 0) / runs : null;
       const isW = m.state === "post" && t.winner;
       const isL = m.state === "post" && !t.winner && (t.score !== (side === "home" ? m.away : m.home).score || m.pens);
-      const score = m.state === "post" ? `<span class="bs">${t.score}${m.pens && t.pens != null ? ` <i>(${t.pens})</i>` : ""}</span>` : "";
+      const score = m.state !== "pre" && t.score != null ? `<span class="bs">${t.score}${m.pens && t.pens != null ? ` <i>(${t.pens})</i>` : ""}</span>` : "";
       const pctS = winP != null ? `<span class="bp ${winP >= 0.5 ? "fav" : ""}">${pct(winP)}</span>` : "";
       return `<div class="brow ${isW ? "bwin" : ""} ${isL ? "bloss" : ""}">
         ${t.logo ? `<img src="${t.logo}" alt="">` : `<span class="bph"></span>`}
         <span class="bn">${esc(t.no)}</span>${score}${pctS}</div>`;
     }
-    // TBD: mest sannsynlige lag i slotten fra simuleringen
-    const counts = d ? d[side] : null;
+    // uavklart: mest sannsynlige lag i slotten fra simuleringen
     const top = counts ? Object.entries(counts).sort((a, b) => b[1] - a[1])[0] : null;
     if (!top) return `<div class="brow tbd"><span class="bph"></span><span class="bn">${esc(t.no)}</span></div>`;
     const [name, cnt] = top;
@@ -788,53 +880,78 @@ function bracketHTML() {
       <span class="bp ${winP >= 0.5 ? "fav" : ""}">${pct(winP)}</span></div>`;
   };
 
-  const cols = BR_ROUNDS.map(([slug, label]) => {
-    const ms = S.matches.filter((m) => m.round === slug).sort((a, b) => a.date - b.date);
-    return `<div class="bcol">
-      <div class="bround">${label}</div>
-      <div class="bcol-inner">
-      ${ms.map((m) => `<div class="bmatch ${m.state === "in" ? "is-live" : ""}" data-id="${m.id}">
-        ${slotRow(m, "home", m.home)}
-        ${slotRow(m, "away", m.away)}
-      </div>`).join("")}
-      </div>
-    </div>`;
-  }).join("");
+  const card = (m, extra = "") => m ? `<div class="bmatch ${m.state === "in" ? "is-live" : ""} ${extra}" data-id="${m.id}">
+    ${slotRow(m, "home", m.home)}
+    ${slotRow(m, "away", m.away)}
+  </div>` : "";
 
-  // mester-kolonne fra finalens vinnerfordeling
-  const fin = S.matches.find((m) => m.round === "final");
-  const wd = fin && det.byId[fin.id] ? det.byId[fin.id].win : null;
-  let champHtml = "";
-  if (wd) {
-    const top3 = Object.entries(wd).sort((a, b) => b[1] - a[1]).slice(0, 3);
-    const [cn, cc] = top3[0];
-    champHtml = `<div class="bcol">
-      <div class="bround">Mester</div>
-      <div class="bcol-inner">
-      <div class="champ">
+  const tree = bracketTree();
+  let treeHtml;
+  if (tree) {
+    const col = (ms, label, cls) => `<div class="bcol ${cls}">
+      <div class="bround">${label}</div>
+      <div class="bcol-inner">${ms.map((m) => card(m)).join("")}</div>
+    </div>`;
+
+    // mester-kort fra finalens vinnerfordeling
+    const wd = det.byId[tree.fin.id]?.win;
+    let champHtml = "";
+    if (wd) {
+      const top3 = Object.entries(wd).sort((a, b) => b[1] - a[1]).slice(0, 3);
+      const [cn, cc] = top3[0];
+      champHtml = `<div class="champ">
         ${teamLogo(cn) ? `<img src="${teamLogo(cn)}" alt="">` : ""}
         <div class="cn">${esc(teamNo(cn))}</div>
         <div class="cp">${pct(cc / runs)}</div>
-        <div class="crest">${top3.slice(1).map(([n, c]) => `${esc(teamNo(n))} ${pct(c / runs)}`).join(" · ")}</div>
+        <div class="crest">${top3.slice(1).map(([n, c]) => `${esc(teamNo(n))} ${pct(c / runs)}`).join("<br>")}</div>
+      </div>`;
+    }
+
+    treeHtml = `<div class="bracket-scroll"><div class="bracket b2">
+      ${col(tree.L.r32s, "16.-dels", "half-l")}
+      ${col(tree.L.r16s, "8.-dels", "half-l")}
+      ${col(tree.L.qfs, "Kvart", "half-l")}
+      ${col([tree.L.sf], "Semi", "half-l")}
+      <div class="bcol bcenter">
+        <div class="bround">Finale</div>
+        <div class="bcol-inner bcenter-inner">
+          ${champHtml}
+          ${card(tree.fin, "bfinal")}
+          ${tree.bronze ? `<div class="bronze-wrap"><div class="bround">Bronse</div>${card(tree.bronze)}</div>` : ""}
+        </div>
       </div>
-      </div>
+      ${col([tree.R.sf], "Semi", "half-r")}
+      ${col(tree.R.qfs, "Kvart", "half-r")}
+      ${col(tree.R.r16s, "8.-dels", "half-r")}
+      ${col(tree.R.r32s, "16.-dels", "half-r")}
+    </div></div>`;
+  } else {
+    // fallback: enkel kolonnevisning hvis treet ikke lar seg rekonstruere
+    treeHtml = `<div class="bracket-scroll"><div class="bracket">
+      ${SIM_ROUNDS.filter((r) => r !== "3rd-place-match").map((slug) => `<div class="bcol">
+        <div class="bround">${ROUND_NO[slug]}</div>
+        <div class="bcol-inner">${S.matches.filter((m) => m.round === slug).sort((a, b) => a.date - b.date).map((m) => card(m)).join("")}</div>
+      </div>`).join("")}
+    </div></div>`;
+  }
+
+  // Norges vei — sjanse per runde fra simuleringen
+  let norgeHtml = "";
+  const nor = S.sim && S.sim.find((r) => r.t === "Norway");
+  if (nor && S.alive.has("Norway")) {
+    const steps = [["Kvartfinale", nor.qf], ["Semifinale", nor.sf], ["Finale", nor.f], ["Tittelen", nor.w]];
+    norgeHtml = `<div class="norge-path">
+      <span class="np-flag">🇳🇴</span><span class="np-label">Norges vei:</span>
+      ${steps.map(([l, p]) => `<span class="np-step"><b>${p < 0.10 ? (p * 100).toFixed(1).replace(".", ",") : Math.round(p * 100)} %</b> ${l}</span>`).join('<span class="np-arrow">→</span>')}
     </div>`;
   }
 
-  const bronze = S.matches.find((m) => m.round === "3rd-place-match");
-  const bronzeHtml = bronze ? `
-    <div class="br-sec" style="margin-top:26px">Bronsefinale</div>
-    <div class="bmatch bronze" data-id="${bronze.id}">
-      ${slotRow(bronze, "home", bronze.home)}
-      ${slotRow(bronze, "away", bronze.away)}
-    </div>` : "";
-
   return `
     <p class="sim-intro">Hele veien fra gruppespill til mester slik modellen ser den. Prosentene på kommende kamper er sjansen for å <b>vinne kampen</b> (fra ${runs.toLocaleString("nb-NO")} simuleringer); på uavklarte plasser vises det mest sannsynlige laget med sjansen for å <b>stå i kampen</b>. Klikk på en kamp for detaljer.</p>
-    ${groupsHtml}
+    ${norgeHtml}
     <div class="br-sec">Sluttspillet</div>
-    <div class="bracket-scroll"><div class="bracket">${cols}${champHtml}</div></div>
-    ${bronzeHtml}`;
+    ${treeHtml}
+    ${groupsHtml}`;
 }
 
 /* value-flagg: modellen avviker 6+ pp fra markedet på et utfall */
