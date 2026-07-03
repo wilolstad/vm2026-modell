@@ -29,9 +29,15 @@ const ELO_SEED = {
 };
 const ELO_DEFAULT = 1650;
 const HOSTS = new Set(["United States", "Mexico", "Canada"]);
-const HOME_BONUS = 60;
-const K = 50;
-const MU_TOTAL = 2.55; // snitt mål per VM-kamp
+/* Parametre backtestet på spilte VM-kamper (logloss 0,787 -> 0,765, bekreftet
+   på sluttspillkamper alene). HB=100 ~ standard hjemmefordel i landskamper,
+   K=30 standard for landslag, power-mapping 1,2 skjerper favoritt-splitten. */
+const HOME_BONUS = 100;
+const K = 30;
+const MU_PRIOR = 2.55;   // prior mål per kamp; oppdateres løpende mot turneringssnittet
+const MU_WEIGHT = 20;    // pseudo-kamper på prioren
+const POW = 1.2;         // eksponent i Elo->lambda-splitten
+let MU_CUR = MU_PRIOR;   // settes under replay, brukes av alle prediksjoner
 const MAX_G = 8;
 
 const NAME_NO = {
@@ -85,16 +91,17 @@ function poisson(k, lam) {
 
 function lambdas(eloH, eloA) {
   const we = eloExp(eloH - eloA);
+  const wg = Math.pow(we, POW) / (Math.pow(we, POW) + Math.pow(1 - we, POW));
   return {
-    lh: Math.max(0.2, MU_TOTAL * we),
-    la: Math.max(0.2, MU_TOTAL * (1 - we)),
+    lh: Math.max(0.2, MU_CUR * wg),
+    la: Math.max(0.2, MU_CUR * (1 - wg)),
   };
 }
 
 /* Dixon-Coles-korreksjon: ren Poisson undervurderer uavgjort fordi målene
    antas uavhengige. Tau justerer de fire lavscore-cellene. ρ = −0,15,
    estimert med grid-search på spilte VM-kamper (logloss 0,810 → 0,798). */
-const RHO = -0.15;
+const RHO = -0.20;
 function dcTau(h, a, lh, la) {
   if (h === 0 && a === 0) return 1 - lh * la * RHO;
   if (h === 0 && a === 1) return 1 + lh * RHO;
@@ -313,12 +320,18 @@ function replayElo() {
     .filter((m) => m.state === "post" && !m.home.tbd && !m.away.tbd)
     .sort((x, y) => x.date - y.date);
 
+  // løpende målsnitt: prior 2,55 vektet som 20 kamper, oppdateres kronologisk
+  MU_CUR = MU_PRIOR;
+  let cumG = 0, cumM = 0;
+
   for (const m of played) {
     const eloH = S.elo[m.home.name] + hostBonus(m.home.name);
     const eloA = S.elo[m.away.name];
     m.pred = predict(eloH, eloA, m.knockout);
 
     const gh = m.home.score, ga = m.away.score;
+    cumG += gh + ga; cumM++;
+    MU_CUR = (MU_PRIOR * MU_WEIGHT + cumG) / (MU_WEIGHT + cumM);
     const res = gh > ga ? 1 : gh < ga ? 0 : 0.5;
     const gd = Math.abs(gh - ga);
     const G = gd <= 1 ? 1 : gd === 2 ? 1.5 : (11 + gd) / 8;

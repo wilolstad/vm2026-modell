@@ -63,11 +63,11 @@
     <div class="method-grid">
       <div>
         <h3>1 · Elo-ratinger</h3>
-        <p>Hvert lag starter med en rating basert på styrkenivå før mesterskapet. Alle spilte VM-kamper replays kronologisk og oppdaterer ratingene fortløpende (K&nbsp;=&nbsp;50, ekstra vekt ved store seiersmarginer, +60 hjemmebonus for vertsnasjonene).</p>
+        <p>Hvert lag starter med en rating basert på styrkenivå før mesterskapet. Alle spilte VM-kamper replays kronologisk og oppdaterer ratingene fortløpende (K&nbsp;=&nbsp;30, ekstra vekt ved store seiersmarginer, +100 hjemmebonus for vertsnasjonene). Parametrene er backtestet på turneringens spilte kamper.</p>
       </div>
       <div>
         <h3>2 · Poisson-modell</h3>
-        <p>Elo-differansen mapper til forventet målproduksjon for hvert lag (snitt ≈ 2,55 mål per VM-kamp). En Poisson-fordeling over alle resultater gir sannsynlighet for seier, uavgjort og tap, med Dixon-Coles-korreksjon (ρ = −0,15, estimert på spilte VM-kamper) fordi ren Poisson undervurderer uavgjort.</p>
+        <p>Elo-differansen mapper til forventet målproduksjon for hvert lag (totalsnittet følger turneringen løpende, power-splitt 1,2 mot favoritten). En Poisson-fordeling over alle resultater gir sannsynlighet for seier, uavgjort og tap, med Dixon-Coles-korreksjon (ρ = −0,20, estimert på spilte VM-kamper) fordi ren Poisson undervurderer uavgjort.</p>
       </div>
       <div>
         <h3>3 · Live in-play</h3>

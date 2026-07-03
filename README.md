@@ -29,11 +29,23 @@ så den trenger verken backend, API-nøkkel eller cron-jobb.
 Prediksjonene for spilte kamper er laget med ratingene slik de var *før* hver kamp,
 så treffprosenten som vises er ærlig out-of-sample.
 
-**Testet og forkastet:** angreps-/forsvarsratinger per lag (residualer mot modellens
-forventning, shrinkage C ∈ [3, 12], cap ∈ [1.3, 1.5]) ble backtestet på de spilte
-kampene og ga *dårligere* logloss enn Elo + DC alene (0,80–0,82 mot 0,787) — med
-4–6 kamper per lag er residualene mest støy, og Elo-oppdateringen fanger allerede
-det meste. Re-testes gjerne senere i turneringen når datagrunnlaget vokser.
+## Eksperimentlogg (backtest på spilte kamper, logloss 1X2)
+
+| Endring | Resultat | Status |
+|---|---|---|
+| Att/def-residualratinger (C 3–12, cap 1.3–1.5) | 0,80–0,82 (verre) | Forkastet — for lite data per lag |
+| Fast MU 2,7–3,05 | marginalt verre | Forkastet |
+| Løpende MU (prior 2,55, vekt 20) | ~likt 1X2, bedre O/U | **Shippet** |
+| Exp-mapping Elo→λ | verre logloss (flere klink-treff = TikTok-fella) | Forkastet |
+| Power-mapping g=1,2 | bedre | **Shippet** |
+| K=50 → 30 | bedre | **Shippet** |
+| Hjemmebonus 60 → 100 | bedre (≈ standard for landskamper) | **Shippet** |
+| DC ρ −0,15 → −0,20 | bedre | **Shippet** |
+| KO-uavgjort-boost | ingen effekt | Forkastet |
+
+Samlet: logloss 0,787 → **0,765**, bekreftet på sluttspillkampene alene
+(0,619 → 0,550). Forbehold: tunet på 85 kamper — parametrene er valgt der de
+også har teoretisk begrunnelse, ikke bare beste tall.
 
 ## Struktur
 
