@@ -43,9 +43,23 @@ så treffprosenten som vises er ærlig out-of-sample.
 | DC ρ −0,15 → −0,20 | bedre | **Shippet** |
 | KO-uavgjort-boost | ingen effekt | Forkastet |
 
-Samlet: logloss 0,787 → **0,765**, bekreftet på sluttspillkampene alene
-(0,619 → 0,550). Forbehold: tunet på 85 kamper — parametrene er valgt der de
-også har teoretisk begrunnelse, ikke bare beste tall.
+**Runde 2 (V3):**
+
+| Endring | Resultat | Status |
+|---|---|---|
+| Bivariat Poisson (felles komponent 0,4) | bedre på alt | **Shippet** |
+| Prediksjons-Elo regressert mot seed (0,7) | bedre | **Shippet** |
+| K-rabatt 0,5 i grupperunde 3 (rotasjon) | bedre | **Shippet** |
+| KO-favoritt-boost (We-skalering 1,08) | målte bedre, men 13 KO-kamper er for tynt — ren chalk-artefakt-risiko | Observert, ikke shippet |
+| KO-spesifikk lavere MU | verre | Forkastet |
+| MOV-varianter (ingen/sqrt) | ~nøytralt | Beholdt standard |
+| Elo-oppdatering: We-shrink i KO < 1 | verre | Forkastet |
+| Lambda-gulv 0,1/0,3 | ~nøytralt | Beholdt 0,2 |
+
+Samlet: logloss 0,787 (V1) → 0,765 (V2) → **0,754 (V3)**, KO-delsett
+0,619 → 0,520, siste-30 0,712 → 0,667. Krav for shipping: forbedring på
+hele settet OG begge delsett, pluss teoretisk begrunnelse. Forbehold:
+tunet på 85 kamper — re-valideres mot resten av sluttspillet.
 
 ## Struktur
 

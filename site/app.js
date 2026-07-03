@@ -37,6 +37,9 @@ const K = 30;
 const MU_PRIOR = 2.55;   // prior mål per kamp; oppdateres løpende mot turneringssnittet
 const MU_WEIGHT = 20;    // pseudo-kamper på prioren
 const POW = 1.2;         // eksponent i Elo->lambda-splitten
+const BIV = 0.4;         // bivariat Poisson: felles målkomponent (korrelerte mål)
+const REG = 0.7;         // prediksjons-Elo regresseres mot seed (demper overreaksjon)
+const R3_DISC = 0.5;     // K-rabatt i gruppespillets runde 3 (rotasjon/døde kamper)
 let MU_CUR = MU_PRIOR;   // settes under replay, brukes av alle prediksjoner
 const MAX_G = 8;
 
@@ -110,28 +113,32 @@ function dcTau(h, a, lh, la) {
   return 1;
 }
 
-/* Poisson-grid: P(hjemmeseier), P(uavgjort), P(borteseier) + toppresultater.
-   baseH/baseA = mål som allerede står (live). dc = Dixon-Coles på hele kampen. */
+/* Bivariat Poisson-grid: X = x1 + x3, Y = x2 + x3, der x3 er en felles
+   komponent (BIV * min(lambda)) som gir korrelerte mål og mer realistisk
+   uavgjort-masse. P(H/U/B) + toppresultater. baseH/baseA = mål som allerede
+   står (live). dc = Dixon-Coles på lavscore-cellene. */
 function grid(lh, la, baseH = 0, baseA = 0, dc = false) {
+  const l3 = BIV * Math.min(lh, la);
+  const l1 = lh - l3, l2 = la - l3;
   let pH = 0, pD = 0, pA = 0;
-  const scores = [];
-  for (let h = 0; h <= MAX_G; h++) {
-    const ph = poisson(h, lh);
-    for (let a = 0; a <= MAX_G; a++) {
-      let p = ph * poisson(a, la);
-      if (dc) p *= dcTau(h, a, lh, la);
-      const th = baseH + h, ta = baseA + a;
-      if (th > ta) pH += p; else if (th < ta) pA += p; else pD += p;
-      scores.push({ h: th, a: ta, p });
+  const merged = {};
+  for (let x3 = 0; x3 <= 5; x3++) {
+    const p3 = poisson(x3, l3);
+    if (p3 < 1e-12) break;
+    for (let x1 = 0; x1 <= MAX_G; x1++) {
+      const p1 = p3 * poisson(x1, l1);
+      for (let x2 = 0; x2 <= MAX_G; x2++) {
+        let p = p1 * poisson(x2, l2);
+        const X = x1 + x3, Y = x2 + x3;
+        if (dc) p *= dcTau(X, Y, lh, la);
+        const th = baseH + X, ta = baseA + Y;
+        if (th > ta) pH += p; else if (th < ta) pA += p; else pD += p;
+        const key = th + "-" + ta;
+        merged[key] = (merged[key] || 0) + p;
+      }
     }
   }
   const tot = pH + pD + pA;
-  // slå sammen like sluttresultater (relevant ved base-mål)
-  const merged = {};
-  for (const s of scores) {
-    const key = s.h + "-" + s.a;
-    merged[key] = (merged[key] || 0) + s.p;
-  }
   const top = Object.entries(merged)
     .map(([k, p]) => ({ k, p: p / tot }))
     .sort((a, b) => b.p - a.p)
@@ -186,7 +193,14 @@ function predictLive(m) {
   return { ...g, adv, statsUsed };
 }
 
-function teamElo(name) { return S.elo[name] ?? ELO_SEED[name] ?? ELO_DEFAULT; }
+/* Prediksjons-Elo: regressert mot seed — turnerings-Elo på 4-6 kamper
+   overreagerer, så vi tror 70 % på bevegelsen. Rå verdi vises i tabellen. */
+function teamElo(name) {
+  const seed = S.eloStart[name] ?? ELO_SEED[name] ?? ELO_DEFAULT;
+  const cur = S.elo[name] ?? seed;
+  return seed + REG * (cur - seed);
+}
+function teamEloRaw(name) { return S.elo[name] ?? ELO_SEED[name] ?? ELO_DEFAULT; }
 function hostBonus(name) { return HOSTS.has(name) ? HOME_BONUS : 0; }
 
 /* ---------- data ---------- */
@@ -323,29 +337,40 @@ function replayElo() {
   // løpende målsnitt: prior 2,55 vektet som 20 kamper, oppdateres kronologisk
   MU_CUR = MU_PRIOR;
   let cumG = 0, cumM = 0;
+  const groupGames = {}; // for K-rabatt i gruppespillets runde 3
 
   for (const m of played) {
-    const eloH = S.elo[m.home.name] + hostBonus(m.home.name);
-    const eloA = S.elo[m.away.name];
-    m.pred = predict(eloH, eloA, m.knockout);
+    // prediksjon med regressert Elo (slik den var før kampen)
+    const seedH = S.eloStart[m.home.name], seedA = S.eloStart[m.away.name];
+    const predH = seedH + REG * (S.elo[m.home.name] - seedH) + hostBonus(m.home.name);
+    const predA = seedA + REG * (S.elo[m.away.name] - seedA);
+    m.pred = predict(predH, predA, m.knockout);
 
     const gh = m.home.score, ga = m.away.score;
     cumG += gh + ga; cumM++;
     MU_CUR = (MU_PRIOR * MU_WEIGHT + cumG) / (MU_WEIGHT + cumM);
+
+    // Elo-oppdatering med rå ratinger; runde 3 i gruppespillet teller halvt
+    let kx = K;
+    if (!m.knockout) {
+      const gr = Math.max(groupGames[m.home.name] || 0, groupGames[m.away.name] || 0) + 1;
+      if (gr === 3) kx = K * R3_DISC;
+      groupGames[m.home.name] = (groupGames[m.home.name] || 0) + 1;
+      groupGames[m.away.name] = (groupGames[m.away.name] || 0) + 1;
+    }
     const res = gh > ga ? 1 : gh < ga ? 0 : 0.5;
     const gd = Math.abs(gh - ga);
     const G = gd <= 1 ? 1 : gd === 2 ? 1.5 : (11 + gd) / 8;
-    const we = eloExp(eloH - eloA);
-    const delta = K * G * (res - we);
+    const we = eloExp(S.elo[m.home.name] + hostBonus(m.home.name) - S.elo[m.away.name]);
+    const delta = kx * G * (res - we);
     S.elo[m.home.name] += delta;
     S.elo[m.away.name] -= delta;
   }
 
-  // prediksjoner for kommende/live kamper med kjente lag
+  // prediksjoner for kommende/live kamper med kjente lag (regressert Elo)
   for (const m of S.matches) {
     if (m.state === "post" || m.home.tbd || m.away.tbd) continue;
-    const eloH = S.elo[m.home.name] + hostBonus(m.home.name);
-    m.pred = predict(eloH, S.elo[m.away.name], m.knockout);
+    m.pred = predict(teamElo(m.home.name) + hostBonus(m.home.name), teamElo(m.away.name), m.knockout);
     if (m.state === "in") m.livePred = predictLive(m);
   }
 
@@ -405,15 +430,24 @@ function markets(m) {
   const eloH = teamElo(m.home.name) + hostBonus(m.home.name);
   const { lh, la } = lambdas(eloH, teamElo(m.away.name));
 
-  // mål: over 2,5 og begge lag scorer, med Dixon-Coles
-  let pO25 = 0, pBTTS = 0;
-  for (let h = 0; h <= MAX_G; h++) {
-    for (let a = 0; a <= MAX_G; a++) {
-      const p = poisson(h, lh) * poisson(a, la) * dcTau(h, a, lh, la);
-      if (h + a > 2.5) pO25 += p;
-      if (h > 0 && a > 0) pBTTS += p;
+  // mål: over 2,5 og begge lag scorer — bivariat + Dixon-Coles, som hovedmodellen
+  let pO25 = 0, pBTTS = 0, totG = 0;
+  const l3 = BIV * Math.min(lh, la), l1 = lh - l3, l2 = la - l3;
+  for (let x3 = 0; x3 <= 5; x3++) {
+    const p3 = poisson(x3, l3);
+    if (p3 < 1e-12) break;
+    for (let x1 = 0; x1 <= MAX_G; x1++) {
+      const p1 = p3 * poisson(x1, l1);
+      for (let x2 = 0; x2 <= MAX_G; x2++) {
+        const X = x1 + x3, Y = x2 + x3;
+        const p = p1 * poisson(x2, l2) * dcTau(X, Y, lh, la);
+        totG += p;
+        if (X + Y > 2.5) pO25 += p;
+        if (X > 0 && Y > 0) pBTTS += p;
+      }
     }
   }
+  pO25 /= totG; pBTTS /= totG;
 
   let corners = null, cards = null;
   const ts = S.teamStats?.teams;
@@ -566,10 +600,14 @@ async function simulate(runs) {
           hN = resolve(srcs[m.id].home); aN = resolve(srcs[m.id].away);
           if (!hN || !aN) continue;
           const { lh, la } = lambdas(teamElo(hN) + hostBonus(hN), teamElo(aN));
-          const gh = samplePoisson(lh), ga = samplePoisson(la);
+          // bivariat trekk: felles komponent gir korrelerte mål
+          const l3 = BIV * Math.min(lh, la);
+          const g3 = samplePoisson(l3);
+          const gh = samplePoisson(lh - l3) + g3, ga = samplePoisson(la - l3) + g3;
           if (gh !== ga) hWins = gh > ga;
           else {
-            const eh = samplePoisson(lh / 3), ea = samplePoisson(la / 3);
+            const e3 = samplePoisson(l3 / 3);
+            const eh = samplePoisson((lh - l3) / 3) + e3, ea = samplePoisson((la - l3) / 3) + e3;
             hWins = eh !== ea ? eh > ea : Math.random() < 0.5;
           }
         }
@@ -1089,8 +1127,8 @@ function openModal(m) {
     fetchSummary(m.id).then(() => { if (S.modalId === m.id) openModal(m); });
   }
   const p = m.state === "in" && m.livePred ? m.livePred : m.pred;
-  const eloH = Math.round(teamElo(m.home.name));
-  const eloA = Math.round(teamElo(m.away.name));
+  const eloH = Math.round(teamEloRaw(m.home.name));
+  const eloA = Math.round(teamEloRaw(m.away.name));
 
   let scoreHtml;
   if (m.state === "pre") {

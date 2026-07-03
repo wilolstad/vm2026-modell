@@ -67,7 +67,7 @@
       </div>
       <div>
         <h3>2 · Poisson-modell</h3>
-        <p>Elo-differansen mapper til forventet målproduksjon for hvert lag (totalsnittet følger turneringen løpende, power-splitt 1,2 mot favoritten). En Poisson-fordeling over alle resultater gir sannsynlighet for seier, uavgjort og tap, med Dixon-Coles-korreksjon (ρ = −0,20, estimert på spilte VM-kamper) fordi ren Poisson undervurderer uavgjort.</p>
+        <p>Elo-differansen mapper til forventet målproduksjon for hvert lag (totalsnittet følger turneringen løpende, power-splitt 1,2, prediksjons-Elo regressert mot seed). Målene modelleres som bivariat Poisson — en felles komponent gjør at målene korrelerer, som i ekte kamper — med Dixon-Coles-korreksjon (ρ = −0,20) på lavscore-resultatene. Alt backtestet på turneringens spilte kamper.</p>
       </div>
       <div>
         <h3>3 · Live in-play</h3>
