@@ -4,7 +4,15 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>VM 2026 · Prediktor</title>
-<meta name="description" content="Live prediksjonsmodell for FIFA VM 2026 — Elo-ratinger, Poisson-modell og in-play vinnersannsynlighet for alle 104 kamper.">
+<meta name="description" content="Live prediksjonsmodell for FIFA VM 2026 — Elo-ratinger, bivariat Poisson og in-play vinnersannsynlighet for alle 104 kamper.">
+<meta property="og:type" content="website">
+<meta property="og:title" content="VM26 Prediktor">
+<meta property="og:description" content="104 kamper · Elo × bivariat Poisson · live data fra ESPN. Prediksjoner, vinnersjanser, braketten og value mot markedet.">
+<meta property="og:url" content="https://wilolstad.github.io/vm2026-modell/">
+<meta property="og:image" content="https://wilolstad.github.io/vm2026-modell/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=Barlow+Condensed:wght@600;700;800&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -44,6 +52,7 @@
       <button data-tab="upcoming" class="tab">Kommende</button>
       <button data-tab="results"  class="tab">Resultater</button>
       <button data-tab="all"      class="tab">Alle kamper</button>
+      <button data-tab="bets"     class="tab">Bets</button>
       <button data-tab="bracket"  class="tab">Braketten</button>
       <button data-tab="sim"      class="tab">Vinnersjanser</button>
       <button data-tab="power"    class="tab">Elo-rangering</button>
@@ -82,6 +91,7 @@
         <p>Der ESPN-feeden har odds (DraftKings) vises markedets impliserte sannsynligheter — renset for bookmaker-margin — ved siden av modellens. Avviker modellen 6+ prosentpoeng fra markedet, flagges kampen med «value». Det betyr at modellen og markedet er uenige, ikke at modellen har rett.</p>
       </div>
     </div>
+    <div id="calib"></div>
     <p class="method-note">Datakilde: ESPN (uoffisielt API). Modellens treffprosent på spilte kamper vises i toppen — prediksjonene er laget med ratingene slik de var <em>før</em> hver kamp, så tallet er ærlig out-of-sample. «Klink» er andelen kamper der modellens mest sannsynlige enkeltresultat ble fasit; det teoretiske taket ligger rundt 10–14 % uansett hvor god modellen er, så alle som «ofte treffer klink» viser deg bare treffene sine. Ikke bruk dette som betting-råd.</p>
   </section>
 

@@ -367,6 +367,40 @@ body {
 .champ .cp { font-family: var(--mono); color: var(--volt); font-weight: 700; font-size: 1.05rem; margin-top: 2px; }
 .champ .crest { font-size: 0.7rem; color: var(--ink-faint); margin-top: 10px; }
 
+/* ---------- bets ---------- */
+
+.bet-hero {
+  background: linear-gradient(150deg, rgba(212, 255, 63, 0.09), transparent 55%), var(--panel);
+  border: 1px solid var(--volt-dim); border-radius: 14px;
+  padding: 20px 24px; margin-bottom: 26px; cursor: pointer;
+  transition: transform 0.12s ease;
+}
+.bet-hero:hover { transform: translateY(-1px); }
+.bh-label {
+  font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.14em;
+  color: var(--volt); margin-bottom: 6px;
+}
+.bh-market { font-family: var(--disp); font-size: 1.7rem; font-weight: 800; line-height: 1.1; }
+.bh-match { color: var(--ink-dim); font-size: 0.9rem; margin-top: 4px; }
+.bh-nums { display: flex; gap: 22px; margin-top: 14px; font-size: 0.85rem; color: var(--ink-faint); flex-wrap: wrap; }
+.bh-nums b { font-family: var(--mono); color: var(--ink); font-size: 1.05rem; }
+.bh-edge b { color: var(--volt); }
+
+.bets-table .bmatchname { color: var(--ink-dim); font-size: 0.84rem; }
+.bet-row { cursor: pointer; }
+
+.ledger { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px; }
+.led-card {
+  background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
+  padding: 14px 16px;
+}
+.led-card .v { font-family: var(--disp); font-size: 1.6rem; font-weight: 800; line-height: 1; }
+.led-card .k { font-size: 0.74rem; color: var(--ink-faint); margin-top: 5px; }
+.led-card.good .v { color: var(--volt); }
+.led-card.bad .v { color: var(--away); }
+
+.h2h-lg { margin-left: auto; color: var(--ink-faint); font-size: 0.68rem; }
+
 /* ---------- value-badge ---------- */
 
 .value-badge {

@@ -310,7 +310,50 @@ async function fetchSummary(id) {
     const reds = (s.keyEvents || [])
       .filter((k) => /red card/i.test(k.type?.text || ""))
       .map((k) => ({ clock: k.clock?.displayValue || "", text: k.text || "" }));
-    S.summaries[id] = { stat, goals, reds, t: Date.now() };
+
+    // målscorere: stillingsendringen i målteksten avslører hvilken side som scoret
+    const scorers = [];
+    let ph = 0;
+    for (const k of s.keyEvents || []) {
+      const t = (k.type?.text || "").toLowerCase();
+      if (t !== "goal" && t !== "penalty - scored" && t !== "own goal") continue;
+      const sc = (k.text || "").match(/(\d+),[^,]*?(\d+)\./);
+      if (!sc) continue;
+      const nh = +sc[1];
+      if (t !== "own goal") {
+        const pm = (k.text || "").match(/\.\s*([A-ZÆØÅÀ-ž][^().]*?)\s*\(/);
+        if (pm) scorers.push({ player: pm[1].trim(), side: nh > ph ? "home" : "away" });
+      }
+      ph = nh;
+    }
+
+    // innbyrdes oppgjør (siste 5)
+    const h2h = (s.headToHeadGames?.[0]?.events || []).slice(0, 5).map((ev) => ({
+      date: ev.gameDate, homeId: ev.homeTeamId, awayId: ev.awayTeamId,
+      hs: ev.homeTeamScore, as: ev.awayTeamScore, league: ev.leagueName,
+    }));
+
+    // historiske odds: scoreboard nuller odds etter kampslutt, summary beholder dem
+    let market = null;
+    const pc = (s.pickcenter || s.odds || []).find((o) => o && (o.homeTeamOdds || o.moneyline));
+    if (pc) {
+      const am = (o) => (o == null || isNaN(o) ? null : o > 0 ? 100 / (o + 100) : -o / (-o + 100));
+      const ph = am(parseFloat(pc.homeTeamOdds?.moneyLine ?? pc.moneyline?.home?.close?.odds));
+      const pa = am(parseFloat(pc.awayTeamOdds?.moneyLine ?? pc.moneyline?.away?.close?.odds));
+      const pd = am(parseFloat(pc.drawOdds?.moneyLine));
+      if (ph && pa && pd) {
+        const t = ph + pd + pa;
+        market = { pH: ph / t, pD: pd / t, pA: pa / t, provider: pc.provider?.name || "DraftKings" };
+        const m = S.matches.find((x) => x.id === id);
+        if (m && !m.market) m.market = market;
+        try {
+          const st = JSON.parse(localStorage.getItem("vm26_odds_v1") || "{}");
+          if (!st[id]) { st[id] = market; localStorage.setItem("vm26_odds_v1", JSON.stringify(st)); }
+        } catch { /* privat modus */ }
+      }
+    }
+
+    S.summaries[id] = { stat, goals, reds, scorers, h2h, market, t: Date.now() };
   } catch { /* summary er nice-to-have, aldri blokkerende */ }
 }
 
@@ -396,10 +439,11 @@ function replayElo() {
 
 /* ---------- lagstatistikk: corner- og kortrater fra spilte kamper ---------- */
 
-const STATS_KEY = "vm26_teamstats_v1";
+const STATS_KEY = "vm26_teamstats_v3";
 
 async function buildTeamStats() {
-  const st = JSON.parse(localStorage.getItem(STATS_KEY) || "null") || { done: [], teams: {} };
+  const st = JSON.parse(localStorage.getItem(STATS_KEY) || "null") || { done: [], teams: {}, scorers: {} };
+  st.scorers = st.scorers || {};
   const doneSet = new Set(st.done);
   const todo = S.matches.filter((m) => m.state === "post" && !m.home.tbd && !m.away.tbd && !doneSet.has(m.id));
 
@@ -416,11 +460,17 @@ async function buildTeamStats() {
       };
       add(m.home.name, sh, sa);
       add(m.away.name, sa, sh);
+      for (const sc of sum.scorers || []) {
+        const team = sc.side === "home" ? m.home.name : m.away.name;
+        const key = sc.player + "|" + team;
+        st.scorers[key] = (st.scorers[key] || 0) + 1;
+      }
       st.done.push(m.id);
     }
   }
   try { localStorage.setItem(STATS_KEY, JSON.stringify(st)); } catch { /* full/privat modus */ }
   S.teamStats = st;
+  if (S.tab === "power" || S.tab === "bets") renderContent(); // toppscorere/regnskap kan ha kommet
 }
 
 /* Poisson-baserte markeder for en kommende kamp: mål-O/U + BTTS fra
@@ -430,8 +480,8 @@ function markets(m) {
   const eloH = teamElo(m.home.name) + hostBonus(m.home.name);
   const { lh, la } = lambdas(eloH, teamElo(m.away.name));
 
-  // mål: over 2,5 og begge lag scorer — bivariat + Dixon-Coles, som hovedmodellen
-  let pO25 = 0, pBTTS = 0, totG = 0;
+  // målmarkeder — bivariat + Dixon-Coles, som hovedmodellen
+  let pO15 = 0, pO25 = 0, pO35 = 0, pBTTS = 0, totG = 0;
   const l3 = BIV * Math.min(lh, la), l1 = lh - l3, l2 = la - l3;
   for (let x3 = 0; x3 <= 5; x3++) {
     const p3 = poisson(x3, l3);
@@ -442,12 +492,15 @@ function markets(m) {
         const X = x1 + x3, Y = x2 + x3;
         const p = p1 * poisson(x2, l2) * dcTau(X, Y, lh, la);
         totG += p;
-        if (X + Y > 2.5) pO25 += p;
+        const T = X + Y;
+        if (T > 1.5) pO15 += p;
+        if (T > 2.5) pO25 += p;
+        if (T > 3.5) pO35 += p;
         if (X > 0 && Y > 0) pBTTS += p;
       }
     }
   }
-  pO25 /= totG; pBTTS /= totG;
+  pO15 /= totG; pO25 /= totG; pO35 /= totG; pBTTS /= totG;
 
   let corners = null, cards = null;
   const ts = S.teamStats?.teams;
@@ -482,7 +535,150 @@ function markets(m) {
     cards = { lyT, lineY, pOverY };
   }
 
-  return { pO25, pBTTS, corners, cards };
+  return { pO15, pO25, pO35, pBTTS, corners, cards };
+}
+
+/* ---------- bets: modellens picks på tvers av markeder ---------- */
+
+function betCandidates() {
+  const out = [];
+  const upcoming = S.matches
+    .filter((m) => m.state === "pre" && !m.home.tbd && !m.away.tbd && m.pred)
+    .sort((a, b) => a.date - b.date);
+  for (const m of upcoming) {
+    const p = m.pred;
+    const mk = markets(m);
+    const push = (market, prob, marketProb = null) =>
+      out.push({ m, market, prob, marketProb, edge: marketProb != null ? prob - marketProb : null });
+    push(`${m.home.no} vinner`, p.pH, m.market?.pH ?? null);
+    push("Uavgjort", p.pD, m.market?.pD ?? null);
+    push(`${m.away.no} vinner`, p.pA, m.market?.pA ?? null);
+    push(`Dobbeltsjanse ${m.home.no}/uavgjort`, p.pH + p.pD);
+    push(`Dobbeltsjanse ${m.away.no}/uavgjort`, p.pA + p.pD);
+    push("Over 1,5 mål", mk.pO15);
+    push("Under 1,5 mål", 1 - mk.pO15);
+    push("Over 2,5 mål", mk.pO25);
+    push("Under 2,5 mål", 1 - mk.pO25);
+    push("Over 3,5 mål", mk.pO35);
+    push("Under 3,5 mål", 1 - mk.pO35);
+    push("Begge lag scorer", mk.pBTTS);
+    push("Ikke begge lag scorer", 1 - mk.pBTTS);
+    if (m.knockout && p.adv != null) {
+      push(`${m.home.no} videre`, p.adv);
+      push(`${m.away.no} videre`, 1 - p.adv);
+    }
+    if (mk.corners) {
+      const ln = String(mk.corners.line).replace(".", ",");
+      push(`Over ${ln} cornere`, mk.corners.pOver);
+      push(`Under ${ln} cornere`, 1 - mk.corners.pOver);
+      const fav = mk.corners.pAflest >= mk.corners.pBflest
+        ? [`Flest cornere: ${m.home.no}`, mk.corners.pAflest]
+        : [`Flest cornere: ${m.away.no}`, mk.corners.pBflest];
+      push(fav[0], fav[1]);
+    }
+    if (mk.cards) {
+      const ln = String(mk.cards.lineY).replace(".", ",");
+      push(`Over ${ln} gule kort`, mk.cards.pOverY);
+      push(`Under ${ln} gule kort`, 1 - mk.cards.pOverY);
+    }
+  }
+  return out;
+}
+
+/* value-regnskapet: modell vs DraftKings på alle spilte kamper med odds */
+function valueLedger() {
+  let n = 0, llM = 0, llB = 0, vCount = 0, vWins = 0, vExp = 0;
+  for (const m of S.matches) {
+    if (m.state !== "post" || !m.pred || !m.market) continue;
+    const o = outcomeOf(m);
+    const pm = o === "H" ? m.pred.pH : o === "D" ? m.pred.pD : m.pred.pA;
+    const pb = o === "H" ? m.market.pH : o === "D" ? m.market.pD : m.market.pA;
+    llM += -Math.log(Math.max(pm, 1e-9));
+    llB += -Math.log(Math.max(pb, 1e-9));
+    n++;
+    const edges = [
+      ["H", m.pred.pH - m.market.pH, m.pred.pH],
+      ["D", m.pred.pD - m.market.pD, m.pred.pD],
+      ["A", m.pred.pA - m.market.pA, m.pred.pA],
+    ].sort((a, b) => b[1] - a[1]);
+    if (edges[0][1] >= 0.06) {
+      vCount++; vExp += edges[0][2];
+      if (edges[0][0] === o) vWins++;
+    }
+  }
+  return { n, llM: n ? llM / n : 0, llB: n ? llB / n : 0, vCount, vWins, vExp };
+}
+
+function betsHTML() {
+  const cands = betCandidates();
+  if (!cands.length) return `<div class="empty">Ingen kommende kamper med kjente lag akkurat nå.</div>`;
+
+  const soon = Date.now() + 48 * 3600 * 1000;
+  // dagens bet: høyest edge mot markedet innen 48t; fallback: mest sannsynlige i 55-88 %-båndet
+  const valueSoon = cands.filter((c) => c.edge != null && c.edge >= 0.04 && c.m.date < soon)
+    .sort((a, b) => b.edge - a.edge);
+  const safeSoon = cands.filter((c) => c.prob >= 0.55 && c.prob <= 0.88 && c.m.date < soon)
+    .sort((a, b) => b.prob - a.prob);
+  const hero = valueSoon[0] || safeSoon[0] || null;
+
+  const heroHtml = hero ? `
+    <div class="bet-hero" data-id="${hero.m.id}">
+      <div class="bh-label">Dagens bet</div>
+      <div class="bh-market">${esc(hero.market)}</div>
+      <div class="bh-match">${esc(hero.m.home.no)} – ${esc(hero.m.away.no)} · ${cap(fmtDayKey(hero.m.date))} ${fmtTime(hero.m.date)}</div>
+      <div class="bh-nums">
+        <span><b>${pct(hero.prob)}</b> modell</span>
+        ${hero.marketProb != null ? `<span><b>${pct(hero.marketProb)}</b> marked</span><span class="bh-edge"><b>+${Math.round(hero.edge * 100)} pp</b> edge</span>` : ""}
+      </div>
+    </div>` : "";
+
+  // sikreste picks: topp 10, maks 2 per kamp
+  const perMatch = {};
+  const safest = [];
+  for (const c of [...cands].sort((a, b) => b.prob - a.prob)) {
+    if ((perMatch[c.m.id] || 0) >= 2) continue;
+    perMatch[c.m.id] = (perMatch[c.m.id] || 0) + 1;
+    safest.push(c);
+    if (safest.length >= 10) break;
+  }
+  const valueList = cands.filter((c) => c.edge != null && c.edge >= 0.04)
+    .sort((a, b) => b.edge - a.edge).slice(0, 6);
+
+  const betRow = (c, showEdge) => `
+    <tr class="bet-row" data-id="${c.m.id}">
+      <td>${esc(c.market)}</td>
+      <td class="bmatchname">${esc(c.m.home.abbr)}–${esc(c.m.away.abbr)} · ${fmtTime(c.m.date)}</td>
+      <td class="num win">${pct(c.prob)}</td>
+      ${showEdge ? `<td class="num">${c.marketProb != null ? pct(c.marketProb) : "–"}</td>
+      <td class="num ${c.edge >= 0.04 ? "up" : ""}">${c.edge != null ? (c.edge > 0 ? "+" : "") + Math.round(c.edge * 100) + " pp" : "–"}</td>` : ""}
+    </tr>`;
+
+  const led = valueLedger();
+  const diff = led.llB - led.llM;
+  const ledHtml = led.n ? `
+    <div class="br-sec">Regnskapet: modell vs. DraftKings</div>
+    <div class="ledger">
+      <div class="led-card"><div class="v">${led.llM.toFixed(3).replace(".", ",")}</div><div class="k">Modellens logloss (${led.n} kamper)</div></div>
+      <div class="led-card"><div class="v">${led.llB.toFixed(3).replace(".", ",")}</div><div class="k">DraftKings' logloss</div></div>
+      <div class="led-card ${diff >= 0 ? "good" : "bad"}"><div class="v">${diff >= 0 ? "Modellen" : "Markedet"}</div><div class="k">leder med ${Math.abs(diff).toFixed(3).replace(".", ",")}</div></div>
+      <div class="led-card"><div class="v">${led.vWins} / ${led.vCount}</div><div class="k">Value-flagg som traff (forventet ≈ ${led.vExp.toFixed(1).replace(".", ",")})</div></div>
+    </div>
+    <p class="mvm-note">Logloss = straff for feil sannsynligheter, lavere er bedre. Value-flagg = kamper der modellen avvek 6+ pp fra markedet; «forventet» er summen av modellens egne sannsynligheter på de valgene. <b>Ærlig forbehold:</b> modellens parametre er tunet på disse kampene, mens DraftKings' odds er ekte out-of-sample — så historikken flatterer modellen. Regnskapet teller for alvor fra i dag og fremover.</p>` : "";
+
+  return `
+    <p class="sim-intro">Modellens picks på tvers av alle markeder den regner på — 1X2, dobbeltsjanse, mål-linjer, begge lag scorer, avansement, cornere og kort. Klikk en rad for kampdetaljer. Dette er sannsynligheter, ikke betting-råd — modellen vet ingenting om skader eller rotasjon.</p>
+    ${heroHtml}
+    <div class="br-sec">Sikreste picks (48 t frem)</div>
+    <div class="table-scroll"><table class="power-table bets-table">
+      <thead><tr><th>Marked</th><th>Kamp</th><th style="text-align:right">Modell</th></tr></thead>
+      <tbody>${safest.map((c) => betRow(c, false)).join("")}</tbody>
+    </table></div>
+    <div class="br-sec">Størst value mot markedet</div>
+    ${valueList.length ? `<div class="table-scroll"><table class="power-table bets-table">
+      <thead><tr><th>Marked</th><th>Kamp</th><th style="text-align:right">Modell</th><th style="text-align:right">DraftKings</th><th style="text-align:right">Edge</th></tr></thead>
+      <tbody>${valueList.map((c) => betRow(c, true)).join("")}</tbody>
+    </table></div>` : `<p class="mvm-note">Ingen value-avvik ≥ 4 pp mot markedet akkurat nå.</p>`}
+    ${ledHtml}`;
 }
 
 /* ---------- Monte Carlo: simuler resten av sluttspillet ---------- */
@@ -670,6 +866,7 @@ function render() {
   renderContent();
   renderStatus();
   renderTicker();
+  renderCalib();
   $("last-updated").textContent =
     "Sist oppdatert " + new Date().toLocaleTimeString("nb-NO", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
 }
@@ -735,7 +932,7 @@ function renderStats() {
 
 function renderChips() {
   const el = $("chips");
-  if (S.tab === "power" || S.tab === "sim" || S.tab === "bracket") { el.innerHTML = ""; return; }
+  if (S.tab === "power" || S.tab === "sim" || S.tab === "bracket" || S.tab === "bets") { el.innerHTML = ""; return; }
   const chips = [["all", "Alle runder"], ...ROUND_ORDER.map((r) => [r, ROUND_NO[r]])];
   el.innerHTML = chips
     .map(([v, l]) => `<button class="chip ${S.round === v ? "active" : ""}" data-round="${v}">${l}</button>`)
@@ -761,7 +958,8 @@ function visibleMatches() {
 
 function renderContent() {
   const el = $("content");
-  if (S.tab === "power") { el.innerHTML = `<div class="table-scroll">${powerHTML()}</div>`; return; }
+  if (S.tab === "power") { el.innerHTML = `<div class="table-scroll">${powerHTML()}</div>${scorersHTML()}`; return; }
+  if (S.tab === "bets") { el.innerHTML = betsHTML(); return; }
   if (S.tab === "sim") { el.innerHTML = simHTML(); return; }
   if (S.tab === "bracket") {
     el.innerHTML = bracketHTML();
@@ -1108,6 +1306,68 @@ function edgeOf(m) {
   return diffs[0].d >= 0.06 ? diffs[0] : null;
 }
 
+function scorersHTML() {
+  const sc = S.teamStats?.scorers;
+  if (!sc || !Object.keys(sc).length) return "";
+  const rows = Object.entries(sc)
+    .map(([k, g]) => { const [player, team] = k.split("|"); return { player, team, g }; })
+    .sort((a, b) => b.g - a.g).slice(0, 12);
+  return `
+    <div class="br-sec" style="margin-top:30px">Toppscorere</div>
+    <div class="table-scroll"><table class="power-table">
+      <thead><tr><th></th><th>Spiller</th><th>Lag</th><th style="text-align:right">Mål</th></tr></thead>
+      <tbody>${rows.map((r, i) => `
+        <tr>
+          <td class="rank">${i + 1}</td>
+          <td style="font-weight:600">${esc(r.player)}</td>
+          <td><span class="tcell">${teamLogo(r.team) ? `<img src="${teamLogo(r.team)}" alt="">` : ""}${esc(teamNo(r.team))}</span></td>
+          <td class="num win">${r.g}</td>
+        </tr>`).join("")}
+      </tbody></table></div>
+    <p class="mvm-note">Aggregert fra ESPNs kampdata (selvmål ikke medregnet).</p>`;
+}
+
+/* Kalibrering: predikert sannsynlighet vs faktisk frekvens, alle H/U/B-utfall */
+function renderCalib() {
+  const el = $("calib");
+  if (!el) return;
+  const pts = [];
+  for (const m of S.matches) {
+    if (m.state !== "post" || !m.pred) continue;
+    const o = outcomeOf(m);
+    pts.push([m.pred.pH, o === "H" ? 1 : 0], [m.pred.pD, o === "D" ? 1 : 0], [m.pred.pA, o === "A" ? 1 : 0]);
+  }
+  if (pts.length < 30) { el.innerHTML = ""; return; }
+  const B = 8, buckets = Array.from({ length: B }, () => ({ sp: 0, sh: 0, n: 0 }));
+  for (const [p, hit] of pts) {
+    const b = Math.min(B - 1, Math.floor(p * B));
+    buckets[b].sp += p; buckets[b].sh += hit; buckets[b].n++;
+  }
+  const W = 520, H = 300, PAD = 44;
+  const x = (v) => PAD + v * (W - PAD - 14);
+  const y = (v) => H - PAD + v * -(H - PAD - 14);
+  const dots = buckets.filter((b) => b.n >= 4).map((b) => {
+    const px = b.sp / b.n, py = b.sh / b.n;
+    const r = 4 + Math.min(8, Math.sqrt(b.n));
+    return `<circle cx="${x(px).toFixed(1)}" cy="${y(py).toFixed(1)}" r="${r.toFixed(1)}" fill="rgba(212,255,63,.75)"><title>${b.n} utfall · predikert ${Math.round(px * 100)} % · faktisk ${Math.round(py * 100)} %</title></circle>`;
+  }).join("");
+  const ticks = [0, 0.25, 0.5, 0.75, 1].map((v) => `
+    <text x="${x(v)}" y="${H - PAD + 20}" fill="#838c78" font-size="11" text-anchor="middle">${v * 100}</text>
+    <text x="${PAD - 10}" y="${y(v) + 4}" fill="#838c78" font-size="11" text-anchor="end">${v * 100}</text>`).join("");
+  el.innerHTML = `
+    <h3 style="margin-top:26px">Kalibrering</h3>
+    <p style="font-size:.85rem;color:var(--ink-dim);max-width:640px">Hvert punkt er en gruppe prediksjoner (${pts.length} utfall totalt fra ${pts.length / 3} kamper). Ligger punktene på diagonalen, betyr «70 %» fra modellen faktisk 70 %. Størrelse = antall utfall.</p>
+    <svg viewBox="0 0 ${W} ${H}" style="max-width:560px;width:100%;margin-top:10px" role="img" aria-label="Kalibreringsplot">
+      <line x1="${x(0)}" y1="${y(0)}" x2="${x(1)}" y2="${y(1)}" stroke="#3d4636" stroke-dasharray="4 4"/>
+      <line x1="${PAD}" y1="${H - PAD}" x2="${W - 14}" y2="${H - PAD}" stroke="#2b3226"/>
+      <line x1="${PAD}" y1="${H - PAD}" x2="${PAD}" y2="14" stroke="#2b3226"/>
+      ${ticks}
+      <text x="${(W + PAD) / 2}" y="${H - 6}" fill="#838c78" font-size="11" text-anchor="middle">Predikert sannsynlighet (%)</text>
+      <text x="12" y="${(H - PAD) / 2}" fill="#838c78" font-size="11" text-anchor="middle" transform="rotate(-90 12 ${(H - PAD) / 2})">Faktisk frekvens (%)</text>
+      ${dots}
+    </svg>`;
+}
+
 const logoCache = {};
 function teamLogo(name) {
   if (name in logoCache) return logoCache[name];
@@ -1122,8 +1382,8 @@ function teamLogo(name) {
 
 function openModal(m) {
   S.modalId = m.id;
-  // hent kampstatistikk i bakgrunnen for spilte/pågående kamper
-  if (m.state !== "pre" && !S.summaries[m.id]) {
+  // hent kampstatistikk/H2H i bakgrunnen (H2H finnes også før avspark)
+  if (!m.home.tbd && !m.away.tbd && !S.summaries[m.id]) {
     fetchSummary(m.id).then(() => { if (S.modalId === m.id) openModal(m); });
   }
   const p = m.state === "in" && m.livePred ? m.livePred : m.pred;
@@ -1240,12 +1500,26 @@ function openModal(m) {
           </div>`;
         }).join("")}`;
     }
-    if (sum.goals.length || sum.reds.length) {
+    if ((sum.goals || []).length || (sum.reds || []).length) {
       const evs = [...sum.goals.map((g) => ({ ...g, kind: "goal" })), ...sum.reds.map((r) => ({ ...r, kind: "red" }))];
       statsHtml += `
         <div class="m-sec">Hendelser</div>
         ${evs.map((e) => `<div class="m-event"><span class="ec">${esc(e.clock)}</span><span class="ei">${e.kind === "goal" ? "⚽" : "🟥"}</span><span>${esc(e.text)}</span></div>`).join("")}`;
     }
+  }
+
+  // innbyrdes oppgjør
+  let h2hHtml = "";
+  const h2hSum = S.summaries[m.id];
+  if (h2hSum?.h2h?.length) {
+    const nameById = { [m.home.id]: m.home.no, [m.away.id]: m.away.no };
+    h2hHtml = `
+      <div class="m-sec">Innbyrdes oppgjør</div>
+      ${h2hSum.h2h.map((g) => {
+        const yr = g.date ? new Date(g.date).getFullYear() : "";
+        const hn = nameById[g.homeId] || "?", an = nameById[g.awayId] || "?";
+        return `<div class="m-event"><span class="ec">${yr}</span><span>${esc(hn)} <b>${g.hs}–${g.as}</b> ${esc(an)}</span><span class="h2h-lg">${esc(g.league || "")}</span></div>`;
+      }).join("")}`;
   }
 
   $("modal-card").innerHTML = `
@@ -1260,6 +1534,7 @@ function openModal(m) {
     ${marketHtml}
     ${marketsHtml}
     ${statsHtml}
+    ${h2hHtml}
     <div class="m-venue">${esc(m.venue)}${m.city ? " · " + esc(m.city) : ""}</div>`;
   $("modal").hidden = false;
   document.body.style.overflow = "hidden";
@@ -1280,6 +1555,19 @@ async function load() {
     if (!res.ok) throw new Error("HTTP " + res.status);
     const data = await res.json();
     S.matches = (data.events || []).map(parseEvent);
+
+    // ESPN-feeden inkluderer odds bare i noen kall — snapshot dem når de dukker
+    // opp, og bruk snapshotet ellers (pre-kamp-snapshot = ærlig regnskap)
+    try {
+      const store = JSON.parse(localStorage.getItem("vm26_odds_v1") || "{}");
+      let dirty = false;
+      for (const m of S.matches) {
+        if (m.market && (m.state === "pre" || !store[m.id])) { store[m.id] = m.market; dirty = true; }
+        if (!m.market && store[m.id]) m.market = store[m.id];
+      }
+      if (dirty) localStorage.setItem("vm26_odds_v1", JSON.stringify(store));
+    } catch { /* privat modus e.l. */ }
+
     // hent kampstatistikk for pågående kamper før live-modellen regnes
     await Promise.all(S.matches.filter((m) => m.state === "in").map((m) => fetchSummary(m.id)));
     replayElo();
@@ -1339,7 +1627,7 @@ document.addEventListener("click", (e) => {
     renderContent();
     return;
   }
-  const card = e.target.closest(".match, .bmatch");
+  const card = e.target.closest(".match, .bmatch, .bet-row, .bet-hero");
   if (card) {
     const m = S.matches.find((x) => x.id === card.dataset.id);
     if (m) openModal(m);
