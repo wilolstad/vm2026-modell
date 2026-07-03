@@ -29,6 +29,12 @@ så den trenger verken backend, API-nøkkel eller cron-jobb.
 Prediksjonene for spilte kamper er laget med ratingene slik de var *før* hver kamp,
 så treffprosenten som vises er ærlig out-of-sample.
 
+**Testet og forkastet:** angreps-/forsvarsratinger per lag (residualer mot modellens
+forventning, shrinkage C ∈ [3, 12], cap ∈ [1.3, 1.5]) ble backtestet på de spilte
+kampene og ga *dårligere* logloss enn Elo + DC alene (0,80–0,82 mot 0,787) — med
+4–6 kamper per lag er residualene mest støy, og Elo-oppdateringen fanger allerede
+det meste. Re-testes gjerne senere i turneringen når datagrunnlaget vokser.
+
 ## Struktur
 
 ```

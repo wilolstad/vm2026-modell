@@ -672,13 +672,14 @@ function renderStats() {
   const goals = played.reduce((s, m) => s + (m.home.score || 0) + (m.away.score || 0), 0);
   const preds = played.filter((m) => m.pred);
   const hits = preds.filter((m) => predOutcome(m.pred) === outcomeOf(m)).length;
+  const exact = preds.filter((m) => m.pred.top[0].k === m.home.score + "-" + m.away.score).length;
   const today = S.matches.filter((m) => sameDay(m.date, new Date())).length;
   $("stats").innerHTML = `
     <div class="stat"><div class="v">${played.length}<small> / 104</small></div><div class="k">Kamper spilt</div></div>
     <div class="stat"><div class="v">${goals}</div><div class="k">Mål totalt</div></div>
-    <div class="stat"><div class="v">${(goals / Math.max(played.length, 1)).toFixed(2).replace(".", ",")}</div><div class="k">Mål per kamp</div></div>
     <div class="stat"><div class="v">${today}</div><div class="k">Kamper i dag</div></div>
-    <div class="stat hit"><div class="v">${preds.length ? Math.round((hits / preds.length) * 100) + " %" : "–"}</div><div class="k">Modellens treffprosent</div></div>`;
+    <div class="stat hit"><div class="v">${preds.length ? Math.round((hits / preds.length) * 100) + " %" : "–"}</div><div class="k">1X2-treff</div></div>
+    <div class="stat hit"><div class="v">${preds.length ? Math.round((exact / preds.length) * 100) + " %" : "–"}</div><div class="k">Klink (eksakt resultat)</div></div>`;
 }
 
 function renderChips() {
@@ -787,12 +788,14 @@ function matchCard(m) {
 
   if (m.state === "post" && m.pred) {
     const hit = predOutcome(m.pred) === outcomeOf(m);
+    const klink = m.pred.top[0].k === m.home.score + "-" + m.away.score;
     foot = `<div class="match-foot">
-      <span class="pred-tag ${hit ? "pred-hit" : "pred-miss"}">${hit ? "✓ Modellen traff" : "✗ Modellen bommet"}</span>
+      <span class="pred-tag ${hit ? "pred-hit" : "pred-miss"}">${klink ? "◎ Klink! Tipset " + m.pred.top[0].k.replace("-", "–") : hit ? "✓ Modellen traff" : "✗ Modellen bommet"}</span>
       <span>${esc(m.venue)}</span></div>`;
   } else if (m.state === "pre" && m.pred) {
+    const t = m.pred.top[0];
     foot = `<div class="match-foot">
-      <span class="xres">Forventet: ${expScore(m.pred)}</span>
+      <span class="xres">Tips: <b>${t.k.replace("-", "–")}</b> (${(t.p * 100).toFixed(0)} %)</span>
       <span>${esc(m.venue)}</span></div>`;
   } else if (m.state === "in" && p) {
     foot = `<div class="match-foot">
