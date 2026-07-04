@@ -286,7 +286,7 @@ function parseEvent(ev) {
 
 async function fetchSummary(id) {
   try {
-    const res = await fetch(SUMMARY_API + id);
+    const res = await fetchT(SUMMARY_API + id);
     if (!res.ok) return;
     const s = await res.json();
     const stat = {};
@@ -897,7 +897,10 @@ function renderTicker() {
     items.push(`<span class="tk pre">${fmtTime(m.date)} ${esc(m.home.abbr)}–${esc(m.away.abbr)}${tip}</span>`);
   }
   const seq = items.map((i) => i + `<span class="tk-sep">///</span>`).join("");
-  el.innerHTML = seq + seq; // duplisert for sømløs loop
+  const html = seq + seq; // duplisert for sømløs loop
+  if (html === S.tickerHtml) return; // ikke restart marquee-animasjonen unødig
+  S.tickerHtml = html;
+  el.innerHTML = html;
 }
 
 function renderStatus() {
@@ -1549,9 +1552,23 @@ function closeModal() {
 
 /* ---------- fetch-løkke ---------- */
 
+/* fetch med timeout — et hengende kall på mobilnett skal ikke drepe refresh-løkka */
+function fetchT(url, ms = 15000) {
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), ms);
+  return fetch(url, { signal: ctrl.signal }).finally(() => clearTimeout(t));
+}
+
+/* signatur av alt som vises — endres den ikke, rører vi ikke DOM-en */
+function dataHash() {
+  return S.matches
+    .map((m) => m.id + m.state + (m.clock || "") + m.home.score + "-" + m.away.score + m.home.name)
+    .join("|");
+}
+
 async function load() {
   try {
-    const res = await fetch(API);
+    const res = await fetchT(API);
     if (!res.ok) throw new Error("HTTP " + res.status);
     const data = await res.json();
     S.matches = (data.events || []).map(parseEvent);
@@ -1571,7 +1588,19 @@ async function load() {
     // hent kampstatistikk for pågående kamper før live-modellen regnes
     await Promise.all(S.matches.filter((m) => m.state === "in").map((m) => fetchSummary(m.id)));
     replayElo();
-    render();
+    S.lastLoad = Date.now();
+
+    // rør bare DOM-en når noe faktisk har endret seg — ellers blinker lista
+    // og tickeren hopper til start ved hver polling
+    const dh = dataHash();
+    if (dh !== S.renderHash) {
+      S.renderHash = dh;
+      render();
+    } else {
+      renderStatus();
+      $("last-updated").textContent =
+        "Sist oppdatert " + new Date().toLocaleTimeString("nb-NO", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+    }
 
     // 50k-simuleringen er ~0,5-2s: kjør chunked, og bare når resultatbildet
     // eller sluttspill-slots faktisk har endret seg
@@ -1636,6 +1665,20 @@ document.addEventListener("click", (e) => {
   if (e.target.id === "modal") closeModal();
 });
 document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeModal(); });
+
+/* Mobil-nettlesere fryser timere når fanen/skjermen er inaktiv — hent ferske
+   data umiddelbart når siden blir synlig igjen (eller nettet kommer tilbake). */
+function wakeUp() {
+  if (document.hidden) return;
+  if (Date.now() - (S.lastLoad || 0) > 30 * 1000) {
+    clearTimeout(S.timer);
+    load();
+  }
+}
+document.addEventListener("visibilitychange", wakeUp);
+window.addEventListener("focus", wakeUp);
+window.addEventListener("pageshow", wakeUp);
+window.addEventListener("online", wakeUp);
 
 /* init: velg fane ut fra om det er kamper i dag */
 (function init() {
