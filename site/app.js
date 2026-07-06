@@ -241,17 +241,23 @@ function parseEvent(ev) {
     tbd: isTBD(x.team.displayName),
   });
 
-  /* markedets impliserte sannsynligheter fra amerikansk moneyline, renset for margin */
+  /* markedets sannsynligheter (renset for margin) + rå decimal-odds (for EV) */
   const american = (o) => (o == null || isNaN(o) ? null : o > 0 ? 100 / (o + 100) : -o / (-o + 100));
+  const decimal = (o) => (o == null || isNaN(o) ? null : o > 0 ? 1 + o / 100 : 1 + 100 / -o);
   let market = null;
-  const odds = (c.odds || [])[0];
-  if (odds && odds.moneyline) {
-    const ph = american(parseInt(odds.moneyline.home?.close?.odds, 10));
-    const pa = american(parseInt(odds.moneyline.away?.close?.odds, 10));
-    const pd = american(odds.drawOdds?.moneyLine);
+  const odds = (c.odds || []).find((o) => o && (o.moneyline || o.homeTeamOdds));
+  if (odds) {
+    const rawH = parseFloat(odds.homeTeamOdds?.moneyLine ?? odds.moneyline?.home?.close?.odds);
+    const rawA = parseFloat(odds.awayTeamOdds?.moneyLine ?? odds.moneyline?.away?.close?.odds);
+    const rawD = parseFloat(odds.drawOdds?.moneyLine);
+    const ph = american(rawH), pa = american(rawA), pd = american(rawD);
     if (ph && pa && pd) {
       const s = ph + pd + pa;
-      market = { pH: ph / s, pD: pd / s, pA: pa / s, provider: odds.provider?.name || "Marked" };
+      market = {
+        pH: ph / s, pD: pd / s, pA: pa / s,
+        oH: decimal(rawH), oD: decimal(rawD), oA: decimal(rawA),
+        provider: odds.provider?.name || "Marked",
+      };
     }
   }
 
@@ -338,12 +344,16 @@ async function fetchSummary(id) {
     const pc = (s.pickcenter || s.odds || []).find((o) => o && (o.homeTeamOdds || o.moneyline));
     if (pc) {
       const am = (o) => (o == null || isNaN(o) ? null : o > 0 ? 100 / (o + 100) : -o / (-o + 100));
-      const ph = am(parseFloat(pc.homeTeamOdds?.moneyLine ?? pc.moneyline?.home?.close?.odds));
-      const pa = am(parseFloat(pc.awayTeamOdds?.moneyLine ?? pc.moneyline?.away?.close?.odds));
-      const pd = am(parseFloat(pc.drawOdds?.moneyLine));
+      const dec = (o) => (o == null || isNaN(o) ? null : o > 0 ? 1 + o / 100 : 1 + 100 / -o);
+      const rawH = parseFloat(pc.homeTeamOdds?.moneyLine ?? pc.moneyline?.home?.close?.odds);
+      const rawA = parseFloat(pc.awayTeamOdds?.moneyLine ?? pc.moneyline?.away?.close?.odds);
+      const rawD = parseFloat(pc.drawOdds?.moneyLine);
+      const ph = am(rawH), pa = am(rawA), pd = am(rawD);
       if (ph && pa && pd) {
         const t = ph + pd + pa;
-        market = { pH: ph / t, pD: pd / t, pA: pa / t, provider: pc.provider?.name || "DraftKings" };
+        market = { pH: ph / t, pD: pd / t, pA: pa / t,
+          oH: dec(rawH), oD: dec(rawD), oA: dec(rawA),
+          provider: pc.provider?.name || "DraftKings" };
         const m = S.matches.find((x) => x.id === id);
         if (m && !m.market) m.market = market;
         try {
@@ -593,11 +603,16 @@ function betCandidates() {
   for (const m of upcoming) {
     const p = m.pred;
     const mk = markets(m);
-    const push = (market, prob, marketProb = null) =>
-      out.push({ m, market, prob, marketProb, edge: marketProb != null ? prob - marketProb : null });
-    push(`${m.home.no} vinner`, p.pH, m.market?.pH ?? null);
-    push("Uavgjort", p.pD, m.market?.pD ?? null);
-    push(`${m.away.no} vinner`, p.pA, m.market?.pA ?? null);
+    const push = (market, prob, marketProb = null, dk = null) =>
+      out.push({
+        m, market, prob, marketProb, dk,
+        fair: prob > 0.01 ? 1 / prob : null,
+        edge: marketProb != null ? prob - marketProb : null,
+        ev: dk ? prob * dk - 1 : null,
+      });
+    push(`${m.home.no} vinner`, p.pH, m.market?.pH ?? null, m.market?.oH ?? null);
+    push("Uavgjort", p.pD, m.market?.pD ?? null, m.market?.oD ?? null);
+    push(`${m.away.no} vinner`, p.pA, m.market?.pA ?? null, m.market?.oA ?? null);
     push(`Dobbeltsjanse ${m.home.no}/uavgjort`, p.pH + p.pD);
     push(`Dobbeltsjanse ${m.away.no}/uavgjort`, p.pA + p.pD);
     push("Over 1,5 mål", mk.pO15);
@@ -699,13 +714,21 @@ function betsHTML() {
   const cands = betCandidates();
   if (!cands.length) return `<div class="empty">Ingen kommende kamper med kjente lag akkurat nå.</div>`;
 
+  const fmtOdds = (o) => o != null ? o.toFixed(2).replace(".", ",") : "–";
   const soon = Date.now() + 48 * 3600 * 1000;
-  // dagens bet: høyest edge mot markedet innen 48t; fallback: mest sannsynlige i 55-88 %-båndet
-  const valueSoon = cands.filter((c) => c.edge != null && c.edge >= 0.04 && c.m.date < soon)
-    .sort((a, b) => b.edge - a.edge);
-  const safeSoon = cands.filter((c) => c.prob >= 0.55 && c.prob <= 0.88 && c.m.date < soon)
-    .sort((a, b) => b.prob - a.prob);
-  const hero = valueSoon[0] || safeSoon[0] || null;
+
+  // spillbart = fair odds >= 1,40 (p <= ~71 %) og ikke ren longshot (p >= 25 %)
+  const playable = cands.filter((c) => c.prob <= 0.72 && c.prob >= 0.25);
+
+  // EV-bets: der vi har rå DK-odds. EV = p * odds - 1 (inkl. bookmaker-margin)
+  const evBets = playable.filter((c) => c.ev != null).sort((a, b) => b.ev - a.ev);
+  // modellens beste picks uten markedsodds: sortert på sannsynlighet innen spillbart bånd
+  const modelBets = playable.filter((c) => c.ev == null).sort((a, b) => b.prob - a.prob).slice(0, 10);
+
+  // dagens bet: beste positive EV innen 48t; fallback beste spillbare pick
+  const hero = evBets.find((c) => c.ev > 0 && c.m.date < soon)
+    || playable.filter((c) => c.m.date < soon).sort((a, b) => (b.ev ?? b.prob - 1) - (a.ev ?? a.prob - 1))[0]
+    || null;
 
   const heroHtml = hero ? `
     <div class="bet-hero" data-id="${hero.m.id}">
@@ -714,29 +737,20 @@ function betsHTML() {
       <div class="bh-match">${esc(hero.m.home.no)} – ${esc(hero.m.away.no)} · ${cap(fmtDayKey(hero.m.date))} ${fmtTime(hero.m.date)}</div>
       <div class="bh-nums">
         <span><b>${pct(hero.prob)}</b> modell</span>
-        ${hero.marketProb != null ? `<span><b>${pct(hero.marketProb)}</b> marked</span><span class="bh-edge"><b>+${Math.round(hero.edge * 100)} pp</b> edge</span>` : ""}
+        <span><b>${fmtOdds(hero.fair)}</b> fair odds</span>
+        ${hero.dk != null ? `<span><b>${fmtOdds(hero.dk)}</b> DraftKings</span>` : ""}
+        ${hero.ev != null ? `<span class="bh-edge"><b>${hero.ev > 0 ? "+" : ""}${(hero.ev * 100).toFixed(1).replace(".", ",")} %</b> EV</span>` : ""}
       </div>
     </div>` : "";
 
-  // sikreste picks: topp 10, maks 2 per kamp
-  const perMatch = {};
-  const safest = [];
-  for (const c of [...cands].sort((a, b) => b.prob - a.prob)) {
-    if ((perMatch[c.m.id] || 0) >= 2) continue;
-    perMatch[c.m.id] = (perMatch[c.m.id] || 0) + 1;
-    safest.push(c);
-    if (safest.length >= 10) break;
-  }
-  const valueList = cands.filter((c) => c.edge != null && c.edge >= 0.04)
-    .sort((a, b) => b.edge - a.edge).slice(0, 6);
-
-  const betRow = (c, showEdge) => `
+  const betRow = (c, mode) => `
     <tr class="bet-row" data-id="${c.m.id}">
       <td>${esc(c.market)}</td>
       <td class="bmatchname">${esc(c.m.home.abbr)}–${esc(c.m.away.abbr)} · ${fmtTime(c.m.date)}</td>
       <td class="num win">${pct(c.prob)}</td>
-      ${showEdge ? `<td class="num">${c.marketProb != null ? pct(c.marketProb) : "–"}</td>
-      <td class="num ${c.edge >= 0.04 ? "up" : ""}">${c.edge != null ? (c.edge > 0 ? "+" : "") + Math.round(c.edge * 100) + " pp" : "–"}</td>` : ""}
+      <td class="num">${fmtOdds(c.fair)}</td>
+      ${mode === "ev" ? `<td class="num">${fmtOdds(c.dk)}</td>
+      <td class="num ${c.ev > 0 ? "up" : "down"}">${c.ev > 0 ? "+" : ""}${(c.ev * 100).toFixed(1).replace(".", ",")} %</td>` : ""}
     </tr>`;
 
   const led = valueLedger();
@@ -752,18 +766,20 @@ function betsHTML() {
     <p class="mvm-note">Logloss = straff for feil sannsynligheter, lavere er bedre. Value-flagg = kamper der modellen avvek 6+ pp fra markedet; «forventet» er summen av modellens egne sannsynligheter på de valgene. <b>Ærlig forbehold:</b> modellens parametre er tunet på disse kampene, mens DraftKings' odds er ekte out-of-sample — så historikken flatterer modellen. Regnskapet teller for alvor fra i dag og fremover.</p>` : "";
 
   return `
-    <p class="sim-intro">Modellens picks på tvers av alle markeder den regner på — 1X2, dobbeltsjanse, mål-linjer, begge lag scorer, avansement, cornere og kort. Klikk en rad for kampdetaljer. Dette er sannsynligheter, ikke betting-råd — modellen vet ingenting om skader eller rotasjon.</p>
+    <p class="sim-intro">Kun bets i spillbart oddsområde (fair odds 1,40–4,00) — 99 %-dobbeltsjanser til odds 1,05 er ikke bets. Der DraftKings-odds finnes vises <b>EV</b> = modellens sannsynlighet × odds − 1; positiv EV betyr at modellen mener oddsen er feilpriset (inkl. bookmakerens margin). Klikk en rad for kampdetaljer. Ikke betting-råd — modellen vet ingenting om skader eller rotasjon.</p>
     ${heroHtml}
-    <div class="br-sec">Sikreste picks (48 t frem)</div>
-    <div class="table-scroll"><table class="power-table bets-table">
-      <thead><tr><th>Marked</th><th>Kamp</th><th style="text-align:right">Modell</th></tr></thead>
-      <tbody>${safest.map((c) => betRow(c, false)).join("")}</tbody>
+    <div class="br-sec">EV mot DraftKings (1X2)</div>
+    ${evBets.length ? `<div class="table-scroll"><table class="power-table bets-table">
+      <thead><tr><th>Marked</th><th>Kamp</th><th style="text-align:right">Modell</th><th style="text-align:right">Fair</th><th style="text-align:right">DK-odds</th><th style="text-align:right">EV</th></tr></thead>
+      <tbody>${evBets.slice(0, 8).map((c) => betRow(c, "ev")).join("")}</tbody>
     </table></div>
-    <div class="br-sec">Størst value mot markedet</div>
-    ${valueList.length ? `<div class="table-scroll"><table class="power-table bets-table">
-      <thead><tr><th>Marked</th><th>Kamp</th><th style="text-align:right">Modell</th><th style="text-align:right">DraftKings</th><th style="text-align:right">Edge</th></tr></thead>
-      <tbody>${valueList.map((c) => betRow(c, true)).join("")}</tbody>
-    </table></div>` : `<p class="mvm-note">Ingen value-avvik ≥ 4 pp mot markedet akkurat nå.</p>`}
+    <p class="mvm-note">Negativ EV = markedet priser bedre enn modellen tror — som er normaltilstanden mot closing-odds. Positiv EV er uenighet, ikke garantert verdi.</p>`
+    : `<p class="mvm-note">Ingen kommende kamper med DraftKings-odds i spillbart område akkurat nå.</p>`}
+    <div class="br-sec">Modellens beste picks uten markedsodds</div>
+    <div class="table-scroll"><table class="power-table bets-table">
+      <thead><tr><th>Marked</th><th>Kamp</th><th style="text-align:right">Modell</th><th style="text-align:right">Fair odds</th></tr></thead>
+      <tbody>${modelBets.map((c) => betRow(c, "plain")).join("")}</tbody>
+    </table></div>
     ${ledHtml}
     ${insightsHTML()}`;
 }
