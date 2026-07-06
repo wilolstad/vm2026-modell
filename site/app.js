@@ -167,7 +167,7 @@ function predictLive(m) {
   const eloA = teamElo(m.away.name);
   const { lh, la } = lambdas(eloH, eloA);
   const played = Math.min(m.clockMin ?? 0, 90);
-  const rem = Math.max(90 - played, 2) / 90;
+  const rem = remainingGoalShare(played); // empirisk måltiming, ikke lineær tid
 
   let mh = 1, ma = 1, statsUsed = false;
   const sum = S.summaries[m.id];
@@ -439,11 +439,41 @@ function replayElo() {
 
 /* ---------- lagstatistikk: corner- og kortrater fra spilte kamper ---------- */
 
-const STATS_KEY = "vm26_teamstats_v3";
+const STATS_KEY = "vm26_teamstats_v4";
+
+/* Måltiming: andel av ordinær-tids-mål per 15-min-bolk. Fallback = målt på
+   turneringen t.o.m. 3. juli (n=215); erstattes av løpende data når nok mål. */
+const GOAL_TIMING_PRIOR = [0.14, 0.12, 0.17, 0.18, 0.13, 0.26];
+
+function goalTimingShares() {
+  const gm = S.teamStats?.gm;
+  if (gm && S.teamStats.gmN >= 120) {
+    const tot = gm.reduce((a, b) => a + b, 0) || 1;
+    return gm.map((x) => x / tot);
+  }
+  return GOAL_TIMING_PRIOR;
+}
+
+/* Andel av kampens målproduksjon som gjenstår ved minutt t (0..90).
+   Lineær tid undervurderer sene mål grovt — 26 % av målene kommer etter 75'. */
+function remainingGoalShare(t) {
+  const shares = goalTimingShares();
+  const cum = [0];
+  for (const s of shares) cum.push(cum[cum.length - 1] + s);
+  const tc = Math.min(Math.max(t, 0), 90);
+  const i = Math.min(5, Math.floor(tc / 15));
+  const frac = (tc - i * 15) / 15;
+  const done = cum[i] + (cum[i + 1] - cum[i]) * frac;
+  return Math.max(0.02, 1 - done / cum[6]);
+}
 
 async function buildTeamStats() {
   const st = JSON.parse(localStorage.getItem(STATS_KEY) || "null") || { done: [], teams: {}, scorers: {} };
   st.scorers = st.scorers || {};
+  st.gm = st.gm || [0, 0, 0, 0, 0, 0]; // mål per 15-min-bolk (ordinær tid)
+  st.gmN = st.gmN || 0;
+  st.lateMatches = st.lateMatches || 0; // kamper med mål etter 75'
+  st.evMatches = st.evMatches || 0;     // kamper med hendelseslogg
   const doneSet = new Set(st.done);
   const todo = S.matches.filter((m) => m.state === "post" && !m.home.tbd && !m.away.tbd && !doneSet.has(m.id));
 
@@ -464,6 +494,21 @@ async function buildTeamStats() {
         const team = sc.side === "home" ? m.home.name : m.away.name;
         const key = sc.player + "|" + team;
         st.scorers[key] = (st.scorers[key] || 0) + 1;
+      }
+      // måltiming fra hendelsesloggen
+      if ((sum.goals || []).length) {
+        st.evMatches++;
+        let late = false;
+        for (const g of sum.goals) {
+          const mm = (g.clock || "").match(/^(\d+)'/);
+          if (!mm) continue;
+          const min = +mm[1];
+          if (min > 90) continue; // e.o. holdes utenfor timing-kurven
+          st.gm[Math.min(5, Math.max(0, Math.ceil(min / 15) - 1))]++;
+          st.gmN++;
+          if (min >= 76) late = true;
+        }
+        if (late) st.lateMatches++;
       }
       st.done.push(m.id);
     }
@@ -609,6 +654,47 @@ function valueLedger() {
   return { n, llM: n ? llM / n : 0, llB: n ? llB / n : 0, vCount, vWins, vExp };
 }
 
+/* Turneringsinnsikt: aggregert fra alle spilte kamper */
+function insightsHTML() {
+  const st = S.teamStats;
+  const played = S.matches.filter((m) => m.state === "post");
+  if (!played.length) return "";
+
+  // BTTS / over 2,5 / snitt regnes fra scoreboard (komplett), timing fra hendelseslogger
+  const btts = played.filter((m) => m.home.score > 0 && m.away.score > 0).length;
+  const o25 = played.filter((m) => m.home.score + m.away.score > 2.5).length;
+  const goals = played.reduce((s, m) => s + m.home.score + m.away.score, 0);
+
+  let timingHtml = "";
+  if (st && st.gmN >= 60) {
+    const labels = ["1–15", "16–30", "31–45+", "46–60", "61–75", "76–90+"];
+    const max = Math.max(...st.gm);
+    const h2share = Math.round(((st.gm[3] + st.gm[4] + st.gm[5]) / st.gmN) * 100);
+    const lateShare = Math.round((st.gm[5] / st.gmN) * 100);
+    const lateMatchShare = st.evMatches ? Math.round((st.lateMatches / st.evMatches) * 100) : 0;
+    timingHtml = `
+      <div class="ins-chart">
+        ${st.gm.map((n, i) => `
+          <div class="ins-col">
+            <div class="ins-val">${n}</div>
+            <div class="ins-bar"><i style="height:${(n / max) * 100}%"></i></div>
+            <div class="ins-lbl">${labels[i]}'</div>
+          </div>`).join("")}
+      </div>
+      <div class="ins-facts">
+        <span><b>${h2share} %</b> av målene kommer i 2. omgang</span>
+        <span><b>${lateShare} %</b> etter 75. minutt</span>
+        <span><b>${lateMatchShare} %</b> av kampene har mål etter 75'</span>
+        <span><b>${Math.round((btts / played.length) * 100)} %</b> begge lag scorer</span>
+        <span><b>${Math.round((o25 / played.length) * 100)} %</b> over 2,5 mål</span>
+        <span><b>${(goals / played.length).toFixed(2).replace(".", ",")}</b> mål per kamp</span>
+      </div>
+      <p class="mvm-note">Måltiming fra ESPNs hendelseslogger (${st.evMatches} kamper, ${st.gmN} mål i ordinær tid). Live-modellen bruker denne kurven i stedet for lineær tid — derfor faller ikke vinnersannsynligheten «for fort» for laget som jager sent i kampen.</p>`;
+  }
+
+  return `<div class="br-sec" style="margin-top:34px">Turneringsinnsikt</div>${timingHtml || `<p class="mvm-note">Måltiming-data lastes i bakgrunnen…</p>`}`;
+}
+
 function betsHTML() {
   const cands = betCandidates();
   if (!cands.length) return `<div class="empty">Ingen kommende kamper med kjente lag akkurat nå.</div>`;
@@ -678,7 +764,8 @@ function betsHTML() {
       <thead><tr><th>Marked</th><th>Kamp</th><th style="text-align:right">Modell</th><th style="text-align:right">DraftKings</th><th style="text-align:right">Edge</th></tr></thead>
       <tbody>${valueList.map((c) => betRow(c, true)).join("")}</tbody>
     </table></div>` : `<p class="mvm-note">Ingen value-avvik ≥ 4 pp mot markedet akkurat nå.</p>`}
-    ${ledHtml}`;
+    ${ledHtml}
+    ${insightsHTML()}`;
 }
 
 /* ---------- Monte Carlo: simuler resten av sluttspillet ---------- */
