@@ -92,12 +92,12 @@ function poisson(k, lam) {
   return p;
 }
 
-function lambdas(eloH, eloA) {
+function lambdas(eloH, eloA, mu = MU_CUR) {
   const we = eloExp(eloH - eloA);
   const wg = Math.pow(we, POW) / (Math.pow(we, POW) + Math.pow(1 - we, POW));
   return {
-    lh: Math.max(0.2, MU_CUR * wg),
-    la: Math.max(0.2, MU_CUR * (1 - wg)),
+    lh: Math.max(0.2, mu * wg),
+    la: Math.max(0.2, mu * (1 - wg)),
   };
 }
 
@@ -317,8 +317,9 @@ async function fetchSummary(id) {
       .filter((k) => /red card/i.test(k.type?.text || ""))
       .map((k) => ({ clock: k.clock?.displayValue || "", text: k.text || "" }));
 
-    // målscorere: stillingsendringen i målteksten avslører hvilken side som scoret
+    // målscorere + tidfestede mål: stillingsendringen i målteksten avslører siden
     const scorers = [];
+    const wpGoals = []; // {min, side} for kampforløps-grafen (ordinær tid)
     let ph = 0;
     for (const k of s.keyEvents || []) {
       const t = (k.type?.text || "").toLowerCase();
@@ -326,9 +327,12 @@ async function fetchSummary(id) {
       const sc = (k.text || "").match(/(\d+),[^,]*?(\d+)\./);
       if (!sc) continue;
       const nh = +sc[1];
+      const side = nh > ph ? "home" : "away";
+      const cm = (k.clock?.displayValue || "").match(/^(\d+)'/);
+      if (cm && +cm[1] <= 90) wpGoals.push({ min: +cm[1], side });
       if (t !== "own goal") {
         const pm = (k.text || "").match(/\.\s*([A-ZÆØÅÀ-ž][^().]*?)\s*\(/);
-        if (pm) scorers.push({ player: pm[1].trim(), side: nh > ph ? "home" : "away" });
+        if (pm) scorers.push({ player: pm[1].trim(), side });
       }
       ph = nh;
     }
@@ -363,7 +367,7 @@ async function fetchSummary(id) {
       }
     }
 
-    S.summaries[id] = { stat, goals, reds, scorers, h2h, market, t: Date.now() };
+    S.summaries[id] = { stat, goals, reds, scorers, wpGoals, h2h, market, t: Date.now() };
   } catch { /* summary er nice-to-have, aldri blokkerende */ }
 }
 
@@ -812,9 +816,11 @@ const PREV_OF = {
       der Spania sto i kamp 11 og slotten egentlig var «R32 12 Winner»).
       Repareres med eliminasjon: kolliderer to slots om samme feeder, flyttes
       den pre-fylte til den eneste ukonsumerte kampen i forrige runde. */
-function koSources() {
+function koSources(cutoff = Infinity) {
   const by = {};
   for (const r of SIM_ROUNDS) by[r] = S.matches.filter((m) => m.round === r).sort((a, b) => a.date - b.date);
+  // «spilt» relativt til cutoff — lar oss rekonstruere turneringstilstanden bakover i tid
+  const isPost = (m) => m.state === "post" && m.date.getTime() <= cutoff;
 
   const srcs = {};
   for (const r of SIM_ROUNDS) {
@@ -834,7 +840,7 @@ function koSources() {
           if (f) { feederId = f.id; kind = s.loser ? "L" : "W"; }
         } else {
           const f = prev.find((pm) => pm.home.name === t.name || pm.away.name === t.name);
-          if (f && f.state !== "post") {
+          if (f && !isPost(f)) {
             s = { ref: f.id, loser: false, movable: true };
             feederId = f.id;
           } else {
@@ -871,14 +877,27 @@ function koSources() {
       }
     }
   }
-  return { srcs, by };
+  return { srcs, by, isPost };
 }
 
 /* Plassholderne («Round of 32 11 Winner») refererer kamp nr. N i runden,
    kronologisk — verifisert mot spilte kamper. */
-async function simulate(runs) {
-  const { srcs, by: byRound } = koSources();
+/* opts: {cutoff, elo, mu, history} — brukes til å rekonstruere historiske
+   turneringstilstander («slik verden så ut etter kamp k»). */
+async function simulate(runs, opts = {}) {
+  const cutoff = opts.cutoff ?? Infinity;
+  const { srcs, by: byRound, isPost } = koSources(cutoff);
   if (!byRound["final"].length) return null;
+
+  // rating-oppslag: enten dagens (regressert), eller et historisk elo-kart
+  const getElo = opts.elo
+    ? (name) => {
+        const seed = S.eloStart[name] ?? ELO_SEED[name] ?? ELO_DEFAULT;
+        const cur = opts.elo[name] ?? seed;
+        return seed + REG * (cur - seed);
+      }
+    : teamElo;
+  const mu = opts.mu ?? MU_CUR;
 
   const reach = {};
   const ensure = (t) => reach[t] || (reach[t] = { qf: 0, sf: 0, f: 0, w: 0 });
@@ -893,12 +912,12 @@ async function simulate(runs) {
     for (const r of SIM_ROUNDS) {
       for (const m of byRound[r]) {
         let hN, aN, hWins;
-        if (m.state === "post" && !m.home.tbd && !m.away.tbd) {
+        if (isPost(m) && !m.home.tbd && !m.away.tbd) {
           hN = m.home.name; aN = m.away.name; hWins = m.home.winner;
         } else {
           hN = resolve(srcs[m.id].home); aN = resolve(srcs[m.id].away);
           if (!hN || !aN) continue;
-          const { lh, la } = lambdas(teamElo(hN) + hostBonus(hN), teamElo(aN));
+          const { lh, la } = lambdas(getElo(hN) + hostBonus(hN), getElo(aN), mu);
           // bivariat trekk: felles komponent gir korrelerte mål
           const l3 = BIV * Math.min(lh, la);
           const g3 = samplePoisson(l3);
@@ -923,10 +942,113 @@ async function simulate(runs) {
     if (winners[fin.id]) ensure(winners[fin.id]).w++;
   }
 
-  S.simDetail = { runs, byId: detail };
+  if (!opts.history) S.simDetail = { runs, byId: detail };
   return Object.entries(reach)
     .map(([t, c]) => ({ t, qf: c.qf / runs, sf: c.sf / runs, f: c.f / runs, w: c.w / runs }))
     .sort((a, b) => b.w - a.w || b.f - a.f || b.sf - a.sf);
+}
+
+/* Elo-tilstand og målsnitt slik de var ved et gitt tidspunkt */
+function eloAsOf(cutoff) {
+  const elo = {};
+  for (const t of Object.keys(S.eloStart)) elo[t] = S.eloStart[t];
+  let mu = MU_PRIOR, cumG = 0, cumM = 0;
+  const gp = {};
+  const played = S.matches
+    .filter((m) => m.state === "post" && !m.home.tbd && !m.away.tbd && m.date.getTime() <= cutoff)
+    .sort((a, b) => a.date - b.date);
+  for (const m of played) {
+    const gh = m.home.score, ga = m.away.score;
+    cumG += gh + ga; cumM++;
+    mu = (MU_PRIOR * MU_WEIGHT + cumG) / (MU_WEIGHT + cumM);
+    let kx = K;
+    if (!m.knockout) {
+      const gr = Math.max(gp[m.home.name] || 0, gp[m.away.name] || 0) + 1;
+      if (gr === 3) kx = K * R3_DISC;
+      gp[m.home.name] = (gp[m.home.name] || 0) + 1;
+      gp[m.away.name] = (gp[m.away.name] || 0) + 1;
+    }
+    const res = gh > ga ? 1 : gh < ga ? 0 : 0.5;
+    const gd = Math.abs(gh - ga);
+    const G = gd <= 1 ? 1 : gd === 2 ? 1.5 : (11 + gd) / 8;
+    const we = eloExp((elo[m.home.name] ?? 1650) + hostBonus(m.home.name) - (elo[m.away.name] ?? 1650));
+    const delta = kx * G * (res - we);
+    elo[m.home.name] = (elo[m.home.name] ?? 1650) + delta;
+    elo[m.away.name] = (elo[m.away.name] ?? 1650) - delta;
+  }
+  return { elo, mu };
+}
+
+/* Historikk: tittelsjanser etter hver spilte sluttspillkamp (rekonstruert) */
+async function buildHistory() {
+  const ko = S.matches
+    .filter((m) => m.knockout && m.state === "post" && !m.home.tbd && !m.away.tbd)
+    .sort((a, b) => a.date - b.date);
+  if (!ko.length) return null;
+  const hash = ko.map((m) => m.id).join(",");
+  if (S.history?.hash === hash) return S.history;
+  if (S.historyBuilding) return null;
+  S.historyBuilding = true;
+
+  const snaps = [];
+  for (let k = 0; k <= ko.length; k++) {
+    const cutoff = k === 0 ? ko[0].date.getTime() - 1 : ko[k - 1].date.getTime();
+    const { elo, mu } = eloAsOf(cutoff);
+    const table = await simulate(5000, { cutoff, elo, mu, history: true });
+    snaps.push({
+      label: k === 0 ? "Før sluttspillet" : `Etter ${ko[k - 1].home.abbr}–${ko[k - 1].away.abbr}`,
+      date: k === 0 ? ko[0].date : ko[k - 1].date,
+      w: Object.fromEntries((table || []).map((r) => [r.t, r.w])),
+    });
+  }
+  S.history = { hash, snaps };
+  S.historyBuilding = false;
+  return S.history;
+}
+
+const HIST_COLORS = ["#d4ff3f", "#ff8a3d", "#4a8fe0", "#e5484d", "#b16fd8", "#2ecc71", "#f5c542", "#8a93a8"];
+
+function historyChartHTML() {
+  const h = S.history;
+  if (!h || h.snaps.length < 3) {
+    return `<div class="br-sec">Tittelsjanser gjennom sluttspillet</div>
+      <p class="mvm-note">Rekonstruerer historikken (kjører ${(5000).toLocaleString("nb-NO")} simuleringer per kamp-snapshot) …</p>`;
+  }
+  const snaps = h.snaps;
+  // lag som på noe tidspunkt var >= 5 %, pluss Norge om de er med
+  const teams = new Set();
+  for (const s of snaps) for (const [t, w] of Object.entries(s.w)) if (w >= 0.05) teams.add(t);
+  if (snaps.some((s) => (s.w["Norway"] || 0) > 0.001)) teams.add("Norway");
+  const list = [...teams].sort((a, b) => (snaps[snaps.length - 1].w[b] || 0) - (snaps[snaps.length - 1].w[a] || 0));
+
+  const W = 720, H = 300, PL = 40, PR = 130, PT = 14, PB = 34;
+  const maxW = Math.max(0.15, ...snaps.flatMap((s) => list.map((t) => s.w[t] || 0))) * 1.12;
+  const x = (i) => PL + (i / (snaps.length - 1)) * (W - PL - PR);
+  const y = (v) => H - PB - (v / maxW) * (H - PT - PB);
+
+  const lines = list.map((t, ti) => {
+    const c = HIST_COLORS[ti % HIST_COLORS.length];
+    const pts = snaps.map((s, i) => `${x(i).toFixed(1)},${y(s.w[t] || 0).toFixed(1)}`).join(" ");
+    const last = snaps[snaps.length - 1].w[t] || 0;
+    return `<polyline points="${pts}" fill="none" stroke="${c}" stroke-width="2" opacity="0.9"/>
+      <circle cx="${x(snaps.length - 1)}" cy="${y(last)}" r="3" fill="${c}"/>
+      <text x="${x(snaps.length - 1) + 8}" y="${y(last) + 4}" fill="${c}" font-size="11" font-weight="600">${esc(teamNo(t))} ${Math.round(last * 100)} %</text>`;
+  }).join("");
+
+  const yticks = [0, 0.1, 0.2, 0.3, 0.4, 0.5].filter((v) => v <= maxW).map((v) => `
+    <line x1="${PL}" y1="${y(v)}" x2="${W - PR}" y2="${y(v)}" stroke="#2b3226" stroke-dasharray="${v ? "2 4" : "0"}"/>
+    <text x="${PL - 8}" y="${y(v) + 4}" fill="#838c78" font-size="10" text-anchor="end">${v * 100}</text>`).join("");
+
+  const step = Math.max(1, Math.round(snaps.length / 6));
+  const xticks = snaps.map((s, i) => (i % step === 0 || i === snaps.length - 1) ? `
+    <text x="${x(i)}" y="${H - PB + 18}" fill="#838c78" font-size="10" text-anchor="middle">${i === 0 ? "start" : s.date.toLocaleDateString("nb-NO", { day: "numeric", month: "numeric" })}</text>` : "").join("");
+
+  return `
+    <div class="br-sec">Tittelsjanser gjennom sluttspillet</div>
+    <p class="sim-intro">Rekonstruert: hvert punkt er ${(5000).toLocaleString("nb-NO")} simuleringer av resten av turneringen slik den sto <em>etter den kampen</em> — med Elo-ratingene og målsnittet slik de var da.</p>
+    <div class="table-scroll"><svg viewBox="0 0 ${W} ${H}" style="min-width:640px;width:100%" role="img" aria-label="Tittelsjanser over tid">
+      ${yticks}${xticks}${lines}
+    </svg></div>`;
 }
 
 /* ---------- hjelpere ---------- */
@@ -1066,7 +1188,11 @@ function renderContent() {
   const el = $("content");
   if (S.tab === "power") { el.innerHTML = `<div class="table-scroll">${powerHTML()}</div>${scorersHTML()}`; return; }
   if (S.tab === "bets") { el.innerHTML = betsHTML(); return; }
-  if (S.tab === "sim") { el.innerHTML = simHTML(); return; }
+  if (S.tab === "sim") {
+    el.innerHTML = simHTML();
+    buildHistory().then((h) => { if (h && S.tab === "sim") { el.innerHTML = simHTML(); } });
+    return;
+  }
   if (S.tab === "bracket") {
     el.innerHTML = bracketHTML();
     const bs = el.querySelector(".bracket-scroll");
@@ -1202,6 +1328,8 @@ function simHTML() {
   const fp = (p) => (p >= 0.995 ? "100 %" : p < 0.001 ? "–" : p < 0.10 ? (p * 100).toFixed(1).replace(".", ",") + " %" : Math.round(p * 100) + " %");
   const maxW = S.sim[0].w || 1;
   return `
+    ${historyChartHTML()}
+    <div class="br-sec" style="margin-top:30px">Vinnersjanser nå</div>
     <p class="sim-intro">Resten av sluttspillet simulert ${SIM_RUNS.toLocaleString("nb-NO")} ganger med dagens Elo-ratinger. Oppdateres etter hver spilte kamp.</p>
     <div class="table-scroll"><table class="power-table sim-table">
     <thead><tr><th></th><th>Lag</th><th style="text-align:right">Kvartfinale</th><th style="text-align:right">Semifinale</th><th style="text-align:right">Finale</th><th style="text-align:right">Vinner VM</th><th class="sim-barcol"></th></tr></thead>
@@ -1484,6 +1612,56 @@ function teamLogo(name) {
   return (logoCache[name] = null);
 }
 
+/* Kampforløp: vinnersannsynlighet minutt for minutt, rekonstruert fra
+   pre-kamp-lambdaene og de tidfestede målene. 538-stil stablet område. */
+function wpChartHTML(m) {
+  if (m.state === "pre" || !m.pred || m.pred.lh == null) return "";
+  const sum = S.summaries[m.id];
+  if (!sum || !sum.wpGoals) return "";
+
+  const endMin = m.state === "in" ? Math.max(2, Math.min(m.clockMin ?? 0, 90)) : 90;
+  const pts = [];
+  for (let t = 0; t <= endMin; t += 2) {
+    const h = sum.wpGoals.filter((g) => g.side === "home" && g.min <= t).length;
+    const a = sum.wpGoals.filter((g) => g.side === "away" && g.min <= t).length;
+    const rem = remainingGoalShare(t);
+    const g = grid(m.pred.lh * rem, m.pred.la * rem, h, a);
+    pts.push({ t, pH: g.pH, pD: g.pD });
+  }
+
+  const W = 460, H = 170, PL = 6, PR = 6, PT = 8, PB = 22;
+  const x = (t) => PL + (t / 90) * (W - PL - PR);
+  const y = (v) => PT + (1 - v) * (H - PT - PB);
+  const up = pts.map((p) => `${x(p.t).toFixed(1)},${y(p.pH).toFixed(1)}`);
+  const mid = pts.map((p) => `${x(p.t).toFixed(1)},${y(p.pH + p.pD).toFixed(1)}`);
+  const x0 = x(0).toFixed(1), xE = x(pts[pts.length - 1].t).toFixed(1);
+  const areaH = `M ${x0},${y(0)} L ${up.join(" L ")} L ${xE},${y(0)} Z`;
+  const areaD = `M ${up.join(" L ")} L ${[...mid].reverse().join(" L ")} Z`;
+  const areaA = `M ${mid.join(" L ")} L ${xE},${y(1)} L ${x0},${y(1)} Z`;
+
+  const goalMarks = sum.wpGoals.filter((g) => g.min <= endMin).map((g) => `
+    <line x1="${x(g.min)}" y1="${y(1)}" x2="${x(g.min)}" y2="${y(0)}" stroke="rgba(240,243,233,.35)" stroke-dasharray="3 3"/>
+    <text x="${x(g.min)}" y="${g.side === "home" ? y(0.06) : y(0.94) + 8}" font-size="11" text-anchor="middle">⚽</text>`).join("");
+
+  const ticks = [0, 45, 90].map((t) => `
+    <text x="${x(t)}" y="${H - 6}" fill="#838c78" font-size="10" text-anchor="middle">${t}'</text>`).join("");
+
+  return `
+    <div class="m-sec">Kampforløpet${m.state === "in" ? " (live)" : ""}</div>
+    <svg viewBox="0 0 ${W} ${H}" style="width:100%" role="img" aria-label="Vinnersannsynlighet gjennom kampen">
+      <path d="${areaH}" fill="rgba(212,255,63,.45)"/>
+      <path d="${areaD}" fill="rgba(61,70,54,.55)"/>
+      <path d="${areaA}" fill="rgba(255,138,61,.40)"/>
+      ${goalMarks}${ticks}
+    </svg>
+    <div class="wp-legend">
+      <span><i style="background:rgba(212,255,63,.7)"></i>${esc(m.home.no)}</span>
+      <span><i style="background:rgba(61,70,54,.9)"></i>Uavgjort</span>
+      <span><i style="background:rgba(255,138,61,.7)"></i>${esc(m.away.no)}</span>
+    </div>
+    ${m.aet || m.pens ? `<p class="mvm-note">Grafen dekker ordinær tid — kampen ble avgjort ${m.pens ? "på straffer" : "i ekstraomgangene"}.</p>` : ""}`;
+}
+
 /* ---------- modal ---------- */
 
 function openModal(m) {
@@ -1637,6 +1815,7 @@ function openModal(m) {
     </div>
     <div class="m-when">${m.state === "pre" ? "" : cap(fmtDayKey(m.date)) + " · " + fmtTime(m.date)}</div>
     ${probsHtml}
+    ${wpChartHTML(m)}
     ${marketHtml}
     ${marketsHtml}
     ${statsHtml}

@@ -401,6 +401,15 @@ body {
 
 .h2h-lg { margin-left: auto; color: var(--ink-faint); font-size: 0.68rem; }
 
+.wp-legend {
+  display: flex; gap: 18px; margin-top: 6px;
+  font-size: 0.72rem; color: var(--ink-dim);
+}
+.wp-legend i {
+  display: inline-block; width: 10px; height: 10px; border-radius: 2px;
+  margin-right: 6px; vertical-align: -1px;
+}
+
 /* ---------- turneringsinnsikt ---------- */
 
 .ins-chart {
