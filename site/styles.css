@@ -673,3 +673,8 @@ body {
 .fdot.fw { background: var(--volt-dim); }
 .fdot.fd { background: var(--line-hard); }
 .fdot.fl { background: var(--red); }
+
+/* «Alle ligaer»-modus: liga-spesifikke faner skjules */
+.tabs.all-mode .tab[data-tab="table"],
+.tabs.all-mode .tab[data-tab="sim"],
+.tabs.all-mode .tab[data-tab="power"] { display: none; }

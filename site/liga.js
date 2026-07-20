@@ -39,7 +39,23 @@ const MAX_G = 8;
 const AD_C = 80;
 const AD_G = 0.5;
 
-function HFA() { return LEAGUES[S.lg]?.hfa ?? 45; }
+/* «Alle ligaer»-modus: S.lg === "all". Prediksjoner er liga-avhengige
+   (Elo, mu, HFA, att/def), så hver liga beregnes i sin egen kontekst som
+   lagres i S.CTX og aktiveres midlertidig (ctxLg) ved behov (modal). */
+function cfgLg() { return S.ctxLg ?? S.lg; }
+
+function HFA() { return LEAGUES[cfgLg()]?.hfa ?? 45; }
+
+function enterCtx(lg) {
+  const prev = { elo: S.elo, eloSnap: S.eloSnap, ad: S.ad, mu: S.mu, ctxLg: S.ctxLg };
+  const c = S.CTX?.[lg];
+  if (c) { S.elo = c.elo; S.eloSnap = c.eloSnap; S.ad = c.ad; S.mu = c.mu; }
+  S.ctxLg = lg;
+  return prev;
+}
+function exitCtx(prev) {
+  S.elo = prev.elo; S.eloSnap = prev.eloSnap; S.ad = prev.ad; S.mu = prev.mu; S.ctxLg = prev.ctxLg;
+}
 
 function adFactors(homeName, awayName) {
   const z = [0, 0, 0, 0];
@@ -264,9 +280,9 @@ function parseEvent(ev) {
   };
 }
 
-async function fetchSummary(id) {
+async function fetchSummary(id, lg = cfgLg()) {
   try {
-    const res = await fetchT(ESPN_BASE + S.lg + "/summary?event=" + id);
+    const res = await fetchT(ESPN_BASE + lg + "/summary?event=" + id);
     if (!res.ok) return;
     const s = await res.json();
     const stat = {};
@@ -375,11 +391,11 @@ function wpChartHTML(m) {
    Snapshotet (bygget dato D av gårsdagens ClubElo) dekker kamper t.o.m. D-2,
    så alt fra og med D-1 replays her. */
 function applyElo() {
-  const entry = S.eloData?.leagues?.[S.lg];
+  const entry = S.eloData?.leagues?.[cfgLg()];
   S.elo = {};
   S.eloSnap = {};
   S.ad = entry?.ad || {};
-  S.mu = entry?.mu ?? LEAGUES[S.lg].muFb;
+  S.mu = entry?.mu ?? LEAGUES[cfgLg()].muFb;
   if (entry) {
     for (const [name, elo] of Object.entries(entry.teams)) {
       S.elo[name] = elo;
@@ -429,7 +445,7 @@ function applyElo() {
 
 /* Pre-kamp-prediksjoner snapshottes i localStorage FØR avspark — treffprosenten
    måles kun mot disse, så den er ærlig (ingen etterpåklokskap). */
-function predsKey() { return "liga_preds_v1_" + S.lg; }
+function predsKey() { return "liga_preds_v1_" + cfgLg(); }
 
 function snapshotPreds() {
   try {
@@ -479,7 +495,7 @@ function samplePoisson(lam) {
 
 async function simSeason(runs) {
   const mySeq = S.seq;
-  if (LEAGUES[S.lg].ucl) return null; // ligafase-sim gir ikke tittelsjanser
+  if (S.lg === "all" || LEAGUES[S.lg].ucl) return null; // liga-spesifikk
   const base = leagueTable();
   if (base.length < 2) return null;
   const names = base.map((r) => r.team.name);
@@ -652,7 +668,11 @@ function renderStats() {
   } catch { /* privat modus */ }
 
   // globalt regnskap (nightly commit) foretrekkes; localStorage som fallback
-  const glob = S.ledger?.leagues?.[S.lg]?.agg;
+  let glob = S.ledger?.leagues?.[S.lg]?.agg;
+  if (S.lg === "all" && S.ledger?.leagues) {
+    glob = Object.values(S.ledger.leagues).reduce(
+      (a, l) => ({ n: a.n + (l.agg?.n || 0), hits: a.hits + (l.agg?.hits || 0) }), { n: 0, hits: 0 });
+  }
   const hitCell = glob && glob.n > 0
     ? `<div class="stat hit"><div class="v">${Math.round((glob.hits / glob.n) * 100)} %</div><div class="k">1X2-treff (globalt, ${glob.n} målt)</div></div>`
     : `<div class="stat hit"><div class="v">${preds ? Math.round((hits / preds) * 100) + " %" : "–"}</div><div class="k">1X2-treff (${preds} målt)</div></div>`;
@@ -696,7 +716,8 @@ function teamRowL(t, opp, m, prob) {
 }
 
 function matchCard(m) {
-  const label = m.week ? "Runde " + m.week : LEAGUES[S.lg].name;
+  const cfg = LEAGUES[m.lg || S.lg] || {};
+  const label = S.lg === "all" ? `${cfg.flagg} ${cfg.name}` : (m.week ? "Runde " + m.week : cfg.name);
   let statusHtml, foot;
   const p = m.state === "in" && m.livePred ? m.livePred : m.pred;
 
@@ -755,6 +776,7 @@ function formDots(name) {
 }
 
 function tableHTML() {
+  if (S.lg === "all") return "";
   const rows = leagueTable();
   if (!rows.length) return `<div class="empty">Ingen tabell ennå.</div>`;
   const cfg = LEAGUES[S.lg];
@@ -842,6 +864,7 @@ function simHistChartHTML() {
 }
 
 function simTabHTML() {
+  if (S.lg === "all") return "";
   if (LEAGUES[S.lg].ucl) {
     return `<div class="empty">Ligafase-tabellen finner du under «Tabell». Sesongsimulering for Champions League krever sluttspillmodell — den kommer når ligafasen er i gang.</div>`;
   }
@@ -937,6 +960,8 @@ function renderContent() {
 /* ---------- modal ---------- */
 
 function openModal(m) {
+  const ctx = S.lg === "all" && m.lg ? enterCtx(m.lg) : null;
+  try {
   S.modalId = m.id;
   if (!S.summaries[m.id]) {
     fetchSummary(m.id).then(() => { if (S.modalId === m.id) openModal(m); });
@@ -1053,7 +1078,7 @@ function openModal(m) {
   }
 
   $("modal-card").innerHTML = `
-    <div class="m-round"><span>${esc(LEAGUES[S.lg].name)}${m.week ? " · Runde " + m.week : ""}</span><button class="m-close" id="m-close">✕</button></div>
+    <div class="m-round"><span>${esc((LEAGUES[m.lg || S.lg] || {}).name || "")}${m.week ? " · Runde " + m.week : ""}</span><button class="m-close" id="m-close">✕</button></div>
     <div class="m-teams">
       <div class="m-team">${logoImg(m.home)}<div class="n">${esc(m.home.short)}</div><div class="e">Elo ${eloH}</div></div>
       ${scoreHtml}
@@ -1070,6 +1095,7 @@ function openModal(m) {
   $("modal").hidden = false;
   document.body.style.overflow = "hidden";
   $("m-close").onclick = closeModal;
+  } finally { if (ctx) exitCtx(ctx); }
 }
 
 function closeModal() {
@@ -1107,21 +1133,62 @@ async function loadEloData() {
   }
 }
 
+/* «Alle ligaer»: hent alle terminlister parallelt, prediker hver liga i sin
+   egen kontekst, og flett kampene (tagget med m.lg) til én kronologisk liste. */
+async function loadAllLeagues(mySeq) {
+  const codes = Object.keys(LEAGUES);
+  const results = await Promise.all(codes.map(async (lg) => {
+    try {
+      const res = await fetchT(ESPN_BASE + lg + "/scoreboard?dates=" + seasonWindow(lg) + "&limit=500", 20000);
+      if (!res.ok) return [];
+      const data = await res.json();
+      return (data.events || []).map((ev) => ({ ...parseEvent(ev), lg }));
+    } catch { return []; }
+  }));
+  if (S.seq !== mySeq) return null;
+
+  const CTX = {};
+  const merged = [];
+  for (let i = 0; i < codes.length; i++) {
+    const lg = codes[i];
+    if (!results[i].length) continue;
+    S.ctxLg = lg;
+    S.matches = results[i];
+    await Promise.all(S.matches.filter((m) => m.state === "in").map((m) => fetchSummary(m.id, lg)));
+    if (S.seq !== mySeq) { S.ctxLg = null; return null; }
+    applyElo();
+    snapshotPreds();
+    CTX[lg] = { elo: S.elo, eloSnap: S.eloSnap, ad: S.ad, mu: S.mu };
+    merged.push(...S.matches);
+  }
+  S.ctxLg = null;
+  S.CTX = CTX;
+  merged.sort((a, b) => a.date - b.date);
+  return merged;
+}
+
 async function load() {
   const mySeq = S.seq;
   try {
     await loadEloData();
-    const url = ESPN_BASE + S.lg + "/scoreboard?dates=" + seasonWindow(S.lg) + "&limit=500";
-    const res = await fetchT(url, 20000);
-    if (!res.ok) throw new Error("HTTP " + res.status);
-    const data = await res.json();
-    if (S.seq !== mySeq) return; // brukeren byttet liga mens vi ventet
-    S.matches = (data.events || []).map(parseEvent);
+    if (S.lg === "all") {
+      const merged = await loadAllLeagues(mySeq);
+      if (!merged) return;
+      S.matches = merged;
+      S.sim = null;
+    } else {
+      const url = ESPN_BASE + S.lg + "/scoreboard?dates=" + seasonWindow(S.lg) + "&limit=500";
+      const res = await fetchT(url, 20000);
+      if (!res.ok) throw new Error("HTTP " + res.status);
+      const data = await res.json();
+      if (S.seq !== mySeq) return; // brukeren byttet liga mens vi ventet
+      S.matches = (data.events || []).map(parseEvent);
 
-    await Promise.all(S.matches.filter((m) => m.state === "in").map((m) => fetchSummary(m.id)));
-    if (S.seq !== mySeq) return;
-    applyElo();
-    snapshotPreds();
+      await Promise.all(S.matches.filter((m) => m.state === "in").map((m) => fetchSummary(m.id)));
+      if (S.seq !== mySeq) return;
+      applyElo();
+      snapshotPreds();
+    }
     S.lastLoad = Date.now();
 
     const dh = dataHash();
@@ -1134,17 +1201,19 @@ async function load() {
         "Sist oppdatert " + new Date().toLocaleTimeString("nb-NO", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
     }
 
-    const hash = S.lg + "|" + S.matches
-      .filter((m) => m.state !== "pre")
-      .map((m) => m.id + ":" + m.home.score + "-" + m.away.score + m.state)
-      .join("|");
-    if (hash !== S.simHash) {
-      S.simHash = hash;
-      simSeason(SIM_RUNS).then((table) => {
-        if (!table || S.seq !== mySeq) return;
-        S.sim = table;
-        if (S.tab === "sim") renderContent();
-      });
+    if (S.lg !== "all") {
+      const hash = S.lg + "|" + S.matches
+        .filter((m) => m.state !== "pre")
+        .map((m) => m.id + ":" + m.home.score + "-" + m.away.score + m.state)
+        .join("|");
+      if (hash !== S.simHash) {
+        S.simHash = hash;
+        simSeason(SIM_RUNS).then((table) => {
+          if (!table || S.seq !== mySeq) return;
+          S.sim = table;
+          if (S.tab === "sim") renderContent();
+        });
+      }
     }
   } catch (err) {
     if (S.seq !== mySeq) return;
@@ -1170,8 +1239,16 @@ function schedule() {
 
 /* ---------- ligabytte + events ---------- */
 
+/* faner uten mening på tvers av ligaer skjules i «Alle ligaer»-modus */
+const LEAGUE_ONLY_TABS = new Set(["table", "sim", "power"]);
+
+function setTab(tab) {
+  S.tab = tab;
+  document.querySelectorAll(".tab").forEach((t) => t.classList.toggle("active", t.dataset.tab === tab));
+}
+
 function switchLeague(lg) {
-  if (!LEAGUES[lg]) lg = "nor.1";
+  if (lg !== "all" && !LEAGUES[lg]) lg = "all";
   S.lg = lg;
   S.seq++;
   S.matches = [];
@@ -1180,12 +1257,17 @@ function switchLeague(lg) {
   S.renderHash = null;
   S.summaries = {};
   S.tickerHtml = null;
+  S.CTX = null;
+  S.ctxLg = null;
+  document.getElementById("tabs").classList.toggle("all-mode", lg === "all");
+  if (lg === "all" && LEAGUE_ONLY_TABS.has(S.tab)) setTab("upcoming");
   try { localStorage.setItem("liga_lg", lg); } catch { /* ok */ }
   const url = new URL(location.href);
   url.searchParams.set("lg", lg);
   history.replaceState(null, "", url);
   $("lg-select").value = lg;
-  $("content").innerHTML = `<div class="loading"><div class="spinner"></div><p>Laster ${esc(LEAGUES[lg].name)} …</p></div>`;
+  const name = lg === "all" ? "alle ligaer" : LEAGUES[lg].name;
+  $("content").innerHTML = `<div class="loading"><div class="spinner"></div><p>Laster ${esc(name)} …</p></div>`;
   clearTimeout(S.timer);
   load();
 }
@@ -1222,13 +1304,14 @@ window.addEventListener("online", wakeUp);
 
 (function init() {
   const sel = $("lg-select");
-  sel.innerHTML = Object.entries(LEAGUES)
+  sel.innerHTML = `<option value="all">🌍 Alle ligaer</option>` + Object.entries(LEAGUES)
     .map(([code, l]) => `<option value="${code}">${l.flagg} ${l.name}</option>`)
     .join("");
   sel.addEventListener("change", () => switchLeague(sel.value));
 
-  document.querySelector('.tab[data-tab="today"]').classList.add("active");
   let lg = new URLSearchParams(location.search).get("lg");
   if (!lg) { try { lg = localStorage.getItem("liga_lg"); } catch { /* ok */ } }
-  switchLeague(lg || "nor.1");
+  lg = lg || "all"; // standard: kommende kamper på tvers av alle ligaene
+  setTab(lg === "all" ? "upcoming" : "today");
+  switchLeague(lg);
 })();
