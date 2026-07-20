@@ -3,6 +3,8 @@ name: Deploy til GitHub Pages
 on:
   push:
     branches: [main]
+  schedule:
+    - cron: "30 4 * * *"   # nightly: ferske klubb-Elo før deploy
   workflow_dispatch:
 
 permissions:
@@ -22,6 +24,13 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      # Feiler ClubElo/ESPN, deployes den committede liga-elo.json i stedet —
+      # siden virker uansett, bare med ett døgn gamle ratinger.
+      - name: Bygg liga-elo.json
+        run: python scripts/liga_build.py || echo "::warning::liga_build feilet — bruker committet liga-elo.json"
       - uses: actions/upload-pages-artifact@v3
         with:
           path: site

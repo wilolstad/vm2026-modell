@@ -1,0 +1,734 @@
+{
+ "generated": "2026-07-20",
+ "leagues": {
+  "nor.1": {
+   "name": "Eliteserien",
+   "teams": {
+    "Hamarkameratene": 1395.9,
+    "Viking FK": 1631.9,
+    "Molde": 1467.1,
+    "Rosenborg": 1427.7,
+    "Kristiansund BK": 1353.0,
+    "SK Brann": 1528.2,
+    "Aalesund": 1291.4,
+    "Lillestrom": 1363.4,
+    "KFUM Oslo": 1363.4,
+    "IK Start": 1294.8,
+    "Vålerenga": 1377.3,
+    "Sandefjord": 1423.7,
+    "Tromso": 1496.8,
+    "Fredrikstad": 1412.8,
+    "Sarpsborg FK": 1403.4,
+    "Bodo/Glimt": 1708.9
+   },
+   "meta": {
+    "Hamarkameratene": {
+     "short": "Hamarkameratene",
+     "abbr": "HAM"
+    },
+    "Viking FK": {
+     "short": "Viking FK",
+     "abbr": "VIK"
+    },
+    "Molde": {
+     "short": "Molde",
+     "abbr": "MOL"
+    },
+    "Rosenborg": {
+     "short": "Rosenborg",
+     "abbr": "ROS"
+    },
+    "Kristiansund BK": {
+     "short": "Kristiansund",
+     "abbr": "KRI"
+    },
+    "SK Brann": {
+     "short": "SK Brann",
+     "abbr": "SKBR"
+    },
+    "Aalesund": {
+     "short": "Aalesund",
+     "abbr": "AAL"
+    },
+    "Lillestrom": {
+     "short": "Lillestrom",
+     "abbr": "LIL"
+    },
+    "KFUM Oslo": {
+     "short": "KFUM",
+     "abbr": "KFUM"
+    },
+    "IK Start": {
+     "short": "IK Start",
+     "abbr": "IKS"
+    },
+    "Vålerenga": {
+     "short": "Valerenga",
+     "abbr": "VAL"
+    },
+    "Sandefjord": {
+     "short": "Sandefjord",
+     "abbr": "SAN"
+    },
+    "Tromso": {
+     "short": "Tromso",
+     "abbr": "TRO"
+    },
+    "Fredrikstad": {
+     "short": "Fredrikstad",
+     "abbr": "FRE"
+    },
+    "Sarpsborg FK": {
+     "short": "Sarpsborg FK",
+     "abbr": "SAR"
+    },
+    "Bodo/Glimt": {
+     "short": "Bodo/Glimt",
+     "abbr": "BODO"
+    }
+   },
+   "mu": 3.188
+  },
+  "eng.1": {
+   "name": "Premier League",
+   "teams": {
+    "Arsenal": 2063.8,
+    "Coventry City": 1661.5,
+    "Hull City": 1532.9,
+    "Manchester United": 1915.3,
+    "Everton": 1803.4,
+    "Crystal Palace": 1803.8,
+    "Ipswich Town": 1640.0,
+    "Sunderland": 1735.9,
+    "Nottingham Forest": 1822.2,
+    "Leeds United": 1797.4,
+    "Brentford": 1836.6,
+    "Tottenham Hotspur": 1777.3,
+    "Brighton & Hove Albion": 1842.0,
+    "Aston Villa": 1921.0,
+    "Manchester City": 1970.9,
+    "AFC Bournemouth": 1872.0,
+    "Newcastle United": 1837.5,
+    "Liverpool": 1910.8,
+    "Fulham": 1813.1,
+    "Chelsea": 1831.1
+   },
+   "meta": {
+    "Arsenal": {
+     "short": "Arsenal",
+     "abbr": "ARS"
+    },
+    "Coventry City": {
+     "short": "Coventry",
+     "abbr": "COV"
+    },
+    "Hull City": {
+     "short": "Hull",
+     "abbr": "HUL"
+    },
+    "Manchester United": {
+     "short": "Man United",
+     "abbr": "MAN"
+    },
+    "Everton": {
+     "short": "Everton",
+     "abbr": "EVE"
+    },
+    "Crystal Palace": {
+     "short": "C Palace",
+     "abbr": "CRY"
+    },
+    "Ipswich Town": {
+     "short": "Ipswich",
+     "abbr": "IPS"
+    },
+    "Sunderland": {
+     "short": "Sunderland",
+     "abbr": "SUN"
+    },
+    "Nottingham Forest": {
+     "short": "Nottm Forest",
+     "abbr": "NFO"
+    },
+    "Leeds United": {
+     "short": "Leeds",
+     "abbr": "LEE"
+    },
+    "Brentford": {
+     "short": "Brentford",
+     "abbr": "BRE"
+    },
+    "Tottenham Hotspur": {
+     "short": "Spurs",
+     "abbr": "TOT"
+    },
+    "Brighton & Hove Albion": {
+     "short": "Brighton",
+     "abbr": "BHA"
+    },
+    "Aston Villa": {
+     "short": "Aston Villa",
+     "abbr": "AVL"
+    },
+    "Manchester City": {
+     "short": "Man City",
+     "abbr": "MNC"
+    },
+    "AFC Bournemouth": {
+     "short": "Bournemouth",
+     "abbr": "BOU"
+    },
+    "Newcastle United": {
+     "short": "Newcastle",
+     "abbr": "NEW"
+    },
+    "Liverpool": {
+     "short": "Liverpool",
+     "abbr": "LIV"
+    },
+    "Fulham": {
+     "short": "Fulham",
+     "abbr": "FUL"
+    },
+    "Chelsea": {
+     "short": "Chelsea",
+     "abbr": "CHE"
+    }
+   },
+   "mu": 2.75
+  },
+  "esp.1": {
+   "name": "LaLiga",
+   "teams": {
+    "Alavés": 1635.0,
+    "Getafe": 1664.1,
+    "Sevilla": 1625.9,
+    "Rayo Vallecano": 1707.3,
+    "Racing Santander": 1581.9,
+    "Villarreal": 1759.3,
+    "Espanyol": 1629.5,
+    "Levante": 1638.7,
+    "Celta Vigo": 1700.8,
+    "Osasuna": 1650.3,
+    "Deportivo La Coruña": 1546.3,
+    "Elche": 1623.4,
+    "Atlético Madrid": 1827.7,
+    "Málaga": 1568.6,
+    "Real Betis": 1747.1,
+    "Real Sociedad": 1669.5,
+    "Athletic Club": 1677.9,
+    "Valencia": 1697.4,
+    "Real Madrid": 1922.9,
+    "Barcelona": 1951.6
+   },
+   "meta": {
+    "Alavés": {
+     "short": "Alavés",
+     "abbr": "ALA"
+    },
+    "Getafe": {
+     "short": "Getafe",
+     "abbr": "GET"
+    },
+    "Sevilla": {
+     "short": "Sevilla",
+     "abbr": "SEV"
+    },
+    "Rayo Vallecano": {
+     "short": "Rayo",
+     "abbr": "RAY"
+    },
+    "Racing Santander": {
+     "short": "Racing",
+     "abbr": "RAC"
+    },
+    "Villarreal": {
+     "short": "Villarreal",
+     "abbr": "VIL"
+    },
+    "Espanyol": {
+     "short": "Espanyol",
+     "abbr": "ESP"
+    },
+    "Levante": {
+     "short": "Levante",
+     "abbr": "LEV"
+    },
+    "Celta Vigo": {
+     "short": "Celta Vigo",
+     "abbr": "CEL"
+    },
+    "Osasuna": {
+     "short": "Osasuna",
+     "abbr": "OSA"
+    },
+    "Deportivo La Coruña": {
+     "short": "Deportivo",
+     "abbr": "DEP"
+    },
+    "Elche": {
+     "short": "Elche",
+     "abbr": "ELC"
+    },
+    "Atlético Madrid": {
+     "short": "Atlético",
+     "abbr": "ATM"
+    },
+    "Málaga": {
+     "short": "Málaga",
+     "abbr": "MCF"
+    },
+    "Real Betis": {
+     "short": "Betis",
+     "abbr": "BET"
+    },
+    "Real Sociedad": {
+     "short": "Real Sociedad",
+     "abbr": "RSO"
+    },
+    "Athletic Club": {
+     "short": "Athletic",
+     "abbr": "ATH"
+    },
+    "Valencia": {
+     "short": "Valencia",
+     "abbr": "VAL"
+    },
+    "Real Madrid": {
+     "short": "Real Madrid",
+     "abbr": "RMA"
+    },
+    "Barcelona": {
+     "short": "Barcelona",
+     "abbr": "BAR"
+    }
+   },
+   "mu": 2.695
+  },
+  "ger.1": {
+   "name": "Bundesliga",
+   "teams": {
+    "Bayern Munich": 2000.9,
+    "VfB Stuttgart": 1763.8,
+    "1. FC Union Berlin": 1619.4,
+    "Eintracht Frankfurt": 1663.8,
+    "FC Cologne": 1568.2,
+    "TSG Hoffenheim": 1700.4,
+    "Mainz": 1671.9,
+    "SC Paderborn 07": 1525.4,
+    "RB Leipzig": 1761.9,
+    "Borussia Mönchengladbach": 1640.8,
+    "SV Elversberg": 1523.4,
+    "Bayer Leverkusen": 1804.0,
+    "Borussia Dortmund": 1834.8,
+    "Hamburg SV": 1602.1,
+    "SC Freiburg": 1724.9,
+    "Werder Bremen": 1606.0,
+    "FC Augsburg": 1636.4,
+    "Schalke 04": 1519.7
+   },
+   "meta": {
+    "Bayern Munich": {
+     "short": "Bayern",
+     "abbr": "MUN"
+    },
+    "VfB Stuttgart": {
+     "short": "Stuttgart",
+     "abbr": "VFB"
+    },
+    "1. FC Union Berlin": {
+     "short": "Union Berlin",
+     "abbr": "FCU"
+    },
+    "Eintracht Frankfurt": {
+     "short": "Frankfurt",
+     "abbr": "SGE"
+    },
+    "FC Cologne": {
+     "short": "Cologne",
+     "abbr": "KOE"
+    },
+    "TSG Hoffenheim": {
+     "short": "Hoffenheim",
+     "abbr": "TSG"
+    },
+    "Mainz": {
+     "short": "Mainz",
+     "abbr": "M05"
+    },
+    "SC Paderborn 07": {
+     "short": "Paderborn",
+     "abbr": "SCP"
+    },
+    "RB Leipzig": {
+     "short": "RB Leipzig",
+     "abbr": "RBL"
+    },
+    "Borussia Mönchengladbach": {
+     "short": "Gladbach",
+     "abbr": "BMG"
+    },
+    "SV Elversberg": {
+     "short": "Elversberg",
+     "abbr": "ELV"
+    },
+    "Bayer Leverkusen": {
+     "short": "Leverkusen",
+     "abbr": "B04"
+    },
+    "Borussia Dortmund": {
+     "short": "Dortmund",
+     "abbr": "DOR"
+    },
+    "Hamburg SV": {
+     "short": "Hamburg",
+     "abbr": "HSV"
+    },
+    "SC Freiburg": {
+     "short": "Freiburg",
+     "abbr": "SCF"
+    },
+    "Werder Bremen": {
+     "short": "Bremen",
+     "abbr": "SVW"
+    },
+    "FC Augsburg": {
+     "short": "Augsburg",
+     "abbr": "FCA"
+    },
+    "Schalke 04": {
+     "short": "Schalke",
+     "abbr": "S04"
+    }
+   },
+   "mu": 3.235
+  },
+  "ita.1": {
+   "name": "Serie A",
+   "teams": {
+    "Internazionale": 1888.6,
+    "Monza": 1544.0,
+    "Udinese": 1645.9,
+    "Como": 1760.0,
+    "Genoa": 1618.2,
+    "Napoli": 1780.3,
+    "Parma": 1599.9,
+    "Cagliari": 1594.3,
+    "Frosinone": 1564.7,
+    "Juventus": 1772.3,
+    "Venezia": 1598.8,
+    "Lecce": 1568.0,
+    "Atalanta": 1763.5,
+    "Sassuolo": 1622.0,
+    "Torino": 1624.1,
+    "AC Milan": 1750.0,
+    "Bologna": 1701.3,
+    "Lazio": 1703.2,
+    "AS Roma": 1793.5,
+    "Fiorentina": 1670.2
+   },
+   "meta": {
+    "Internazionale": {
+     "short": "Inter Milan",
+     "abbr": "INT"
+    },
+    "Monza": {
+     "short": "Monza",
+     "abbr": "MON"
+    },
+    "Udinese": {
+     "short": "Udinese",
+     "abbr": "UDI"
+    },
+    "Como": {
+     "short": "Como",
+     "abbr": "COMO"
+    },
+    "Genoa": {
+     "short": "Genoa",
+     "abbr": "GEN"
+    },
+    "Napoli": {
+     "short": "Napoli",
+     "abbr": "NAP"
+    },
+    "Parma": {
+     "short": "Parma",
+     "abbr": "PAR"
+    },
+    "Cagliari": {
+     "short": "Cagliari",
+     "abbr": "CAG"
+    },
+    "Frosinone": {
+     "short": "Frosinone",
+     "abbr": "FRO"
+    },
+    "Juventus": {
+     "short": "Juventus",
+     "abbr": "JUV"
+    },
+    "Venezia": {
+     "short": "Venezia",
+     "abbr": "VEN"
+    },
+    "Lecce": {
+     "short": "Lecce",
+     "abbr": "LEC"
+    },
+    "Atalanta": {
+     "short": "Atalanta",
+     "abbr": "ATA"
+    },
+    "Sassuolo": {
+     "short": "Sassuolo",
+     "abbr": "SAS"
+    },
+    "Torino": {
+     "short": "Torino",
+     "abbr": "TOR"
+    },
+    "AC Milan": {
+     "short": "Milan",
+     "abbr": "MIL"
+    },
+    "Bologna": {
+     "short": "Bologna",
+     "abbr": "BOL"
+    },
+    "Lazio": {
+     "short": "Lazio",
+     "abbr": "LAZ"
+    },
+    "AS Roma": {
+     "short": "AS Roma",
+     "abbr": "ROMA"
+    },
+    "Fiorentina": {
+     "short": "Fiorentina",
+     "abbr": "FIO"
+    }
+   },
+   "mu": 2.426
+  },
+  "por.1": {
+   "name": "Liga Portugal",
+   "teams": {
+    "Benfica": 1823.5,
+    "Estoril": 1493.9,
+    "FC Famalicao": 1591.0,
+    "Estrela": 1403.2,
+    "Sporting CP": 1847.9,
+    "FC Porto": 1805.9,
+    "Alverca": 1443.6,
+    "Gil Vicente": 1507.8,
+    "Rio Ave": 1451.3,
+    "Casa Pia": 1427.9,
+    "Moreirense": 1479.0,
+    "Braga": 1698.9,
+    "Santa Clara": 1483.0,
+    "C.D. Nacional": 1451.0,
+    "Vitória de Guimaraes": 1515.6,
+    "Arouca": 1500.7
+   },
+   "meta": {
+    "Benfica": {
+     "short": "Benfica",
+     "abbr": "SLB"
+    },
+    "Académico de Viseu": {
+     "short": "Viseu",
+     "abbr": "AVF"
+    },
+    "Estoril": {
+     "short": "Estoril",
+     "abbr": "EPF"
+    },
+    "FC Famalicao": {
+     "short": "FC Famalicao",
+     "abbr": "FCF"
+    },
+    "Estrela": {
+     "short": "Estrela",
+     "abbr": "EST"
+    },
+    "Sporting CP": {
+     "short": "Sporting",
+     "abbr": "SCP"
+    },
+    "FC Porto": {
+     "short": "FC Porto",
+     "abbr": "FCP"
+    },
+    "Alverca": {
+     "short": "Alverca",
+     "abbr": "ALV"
+    },
+    "Gil Vicente": {
+     "short": "Gil Vicente",
+     "abbr": "GVFC"
+    },
+    "Rio Ave": {
+     "short": "Rio Ave",
+     "abbr": "RAFC"
+    },
+    "Maritimo": {
+     "short": "Maritimo",
+     "abbr": "MAR"
+    },
+    "Casa Pia": {
+     "short": "Casa Pia",
+     "abbr": "CPAC"
+    },
+    "Moreirense": {
+     "short": "Moreirense",
+     "abbr": "MFC"
+    },
+    "Braga": {
+     "short": "Braga",
+     "abbr": "SCB"
+    },
+    "Santa Clara": {
+     "short": "Santa Clara",
+     "abbr": "CDSC"
+    },
+    "C.D. Nacional": {
+     "short": "Nacional",
+     "abbr": "CDN"
+    },
+    "Vitória de Guimaraes": {
+     "short": "Vitória ",
+     "abbr": "VSC"
+    },
+    "Arouca": {
+     "short": "Arouca",
+     "abbr": "FCA"
+    }
+   },
+   "mu": 2.683
+  },
+  "ksa.1": {
+   "name": "Saudi Pro League",
+   "teams": {
+    "Al Ahli": 1779.1,
+    "Al Hazem": 1459.5,
+    "Al Tai": 1386.5,
+    "Damac": 1418.1,
+    "Al Fayha": 1451.2,
+    "Al Khaleej": 1406.7,
+    "Al Fateh": 1456.1,
+    "Al Taawoun": 1541.8,
+    "Al Riyadh": 1403.7,
+    "Al Wehda": 1430.5,
+    "Abha": 1380.1,
+    "Al Hilal": 1849.2,
+    "Al Raed": 1327.3,
+    "Al Ittihad": 1616.2,
+    "Al Ettifaq": 1539.3,
+    "Al Nassr": 1820.5,
+    "Al Shabab": 1488.5,
+    "Al Okhdood": 1329.7,
+    "Al Orobah": 1384.1,
+    "Al Qadsiah": 1766.1,
+    "Al Kholood": 1425.3,
+    "Neom SC": 1503.7,
+    "Al Najma": 1337.0
+   },
+   "meta": {
+    "Al Ahli": {
+     "short": "Al Ahli",
+     "abbr": "AL "
+    },
+    "Al Hazem": {
+     "short": "Al Hazem",
+     "abbr": "AL "
+    },
+    "Al Tai": {
+     "short": "Al Tai",
+     "abbr": "AL "
+    },
+    "Damac": {
+     "short": "Damac",
+     "abbr": "DAM"
+    },
+    "Al Fayha": {
+     "short": "Al Fayha",
+     "abbr": "AL "
+    },
+    "Al Khaleej": {
+     "short": "Al Khaleej",
+     "abbr": "AL "
+    },
+    "Al Fateh": {
+     "short": "Al Fateh",
+     "abbr": "AL "
+    },
+    "Al Taawoun": {
+     "short": "Al Taawoun",
+     "abbr": "AL "
+    },
+    "Al Riyadh": {
+     "short": "Al Riyadh",
+     "abbr": "AL "
+    },
+    "Al Wehda": {
+     "short": "Al Wehda",
+     "abbr": "AL "
+    },
+    "Abha": {
+     "short": "Abha",
+     "abbr": "ABH"
+    },
+    "Al Hilal": {
+     "short": "Al Hilal",
+     "abbr": "AL "
+    },
+    "Al Raed": {
+     "short": "Al Raed",
+     "abbr": "AL "
+    },
+    "Al Ittihad": {
+     "short": "Al Ittihad",
+     "abbr": "AL "
+    },
+    "Al Ettifaq": {
+     "short": "Al Ettifaq",
+     "abbr": "AL "
+    },
+    "Al Nassr": {
+     "short": "Al Nassr",
+     "abbr": "AL "
+    },
+    "Al Shabab": {
+     "short": "Al Shabab",
+     "abbr": "AL "
+    },
+    "Al Okhdood": {
+     "short": "Al Okhdood",
+     "abbr": "AL "
+    },
+    "Al Orobah": {
+     "short": "Al Orobah",
+     "abbr": "AL "
+    },
+    "Al Qadsiah": {
+     "short": "Al Qadsiah",
+     "abbr": "AL "
+    },
+    "Al Kholood": {
+     "short": "Al Kholood",
+     "abbr": "AL "
+    },
+    "Neom SC": {
+     "short": "Neom SC",
+     "abbr": "NEO"
+    },
+    "Al Najma": {
+     "short": "Al Najma",
+     "abbr": "AL "
+    }
+   },
+   "mu": 3.01
+  }
+ }
+}

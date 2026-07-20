@@ -614,3 +614,33 @@ body {
   .ticker-track { animation: none; }
   .dot-live, .badge-live::before { animation: none; }
 }
+
+/* ---------- liga-siden ---------- */
+
+.topnav a {
+  color: var(--ink-dim); text-decoration: none; font-size: 0.78rem;
+  font-weight: 600; text-transform: uppercase; letter-spacing: 0.12em;
+  padding: 6px 10px; border: 1px solid var(--line); border-radius: 6px;
+  transition: color 0.15s, border-color 0.15s;
+}
+.topnav a:hover { color: var(--volt); border-color: var(--line-hard); }
+
+.lg-row { margin-bottom: 12px; }
+.lg-select {
+  width: 100%; max-width: 340px;
+  background: var(--panel); color: var(--ink);
+  border: 1px solid var(--line-hard); border-radius: 8px;
+  padding: 10px 12px; font-family: var(--sans); font-size: 0.95rem;
+  font-weight: 600; cursor: pointer;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%23838c78' stroke-width='2' fill='none'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: right 12px center;
+}
+.lg-select:focus { outline: none; border-color: var(--volt-dim); }
+
+.power-table .num-h { text-align: right; }
+
+.lg-table .z-title td { background: rgba(212, 255, 63, 0.10); }
+.lg-table .z-top td   { background: rgba(212, 255, 63, 0.04); }
+.lg-table .z-po td    { background: rgba(255, 160, 77, 0.08); }
+.lg-table .z-rel td   { background: rgba(229, 72, 77, 0.09); }

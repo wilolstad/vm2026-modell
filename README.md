@@ -1,6 +1,7 @@
-# VM 2026 · Prediktor
+# VM 2026 · Prediktor (+ liga-prediktor)
 
 **Live:** https://wilolstad.github.io/vm2026-modell/
+**Ligaer:** https://wilolstad.github.io/vm2026-modell/liga.html
 
 Prediksjonsmodell for alle 104 kamper i FIFA World Cup 2026. Alt kjører
 klient-side — siden henter live data direkte fra ESPNs (uoffisielle) scoreboard-API,
@@ -61,16 +62,42 @@ Samlet: logloss 0,787 (V1) → 0,765 (V2) → **0,754 (V3)**, KO-delsett
 hele settet OG begge delsett, pluss teoretisk begrunnelse. Forbehold:
 tunet på 85 kamper — re-valideres mot resten av sluttspillet.
 
+## Liga-prediktoren (liga.html)
+
+Samme motor for klubbfotball: Eliteserien, Premier League, LaLiga, Bundesliga,
+Serie A, Liga Portugal og Saudi Pro League.
+
+- **Ratinger:** [ClubElo](http://clubelo.com), hentet nightly av
+  `scripts/liga_build.py` (GitHub Actions kl. 04:30 UTC) → `site/liga-elo.json`.
+  ClubElo har ikke CORS, derfor bygges fila server-side. Saudi Pro League finnes
+  ikke på ClubElo — de ratingene beregnes ved å replaye alle resultater siden
+  2023 fra ESPN (K=25, start 1500). Kamper spilt etter natt-snapshotet replays
+  klient-side (K=20), så ratingene er alltid ferske.
+- **Kalibrering per liga:** målsnittet beregnes fra forrige sesong (Serie A 2,4 →
+  Bundesliga 3,2) og oppdateres løpende mot inneværende sesong; hjemmefordel
+  +65 Elo (klubbnivå, mot +100 for landslag).
+- **Sesongsim:** alle gjenstående serierunder simuleres 10 000 ganger →
+  sannsynlighet for tittel, topp 4, playoff og nedrykk. Tie-break forenklet til
+  poeng/målforskjell/scorede mål.
+- **Ærlighet:** 1X2-treff måles kun mot prediksjoner snapshottet i localStorage
+  *før* avspark. Nyopprykkede lag uten ClubElo-rating (f.eks. Viseu, Marítimo)
+  får ligaens bunnrating minus 25.
+
 ## Struktur
 
 ```
 site/
-  index.html   – markup
-  styles.css   – mørkt tema
-  app.js       – datahenting, Elo-replay, Poisson, rendering
+  index.html    – VM-siden
+  liga.html     – liga-siden
+  styles.css    – delt mørkt tema
+  app.js        – VM: datahenting, Elo-replay, Poisson, rendering
+  liga.js       – liga: samme motor + tabell og sesongsim
+  liga-elo.json – klubb-Elo + målsnitt per liga (bygges nightly)
+scripts/
+  liga_build.py – henter ClubElo, mapper lagnavn, beregner Saudi-Elo og mu
 ```
 
-Deployes automatisk til GitHub Pages ved push til `main`.
+Deployes automatisk til GitHub Pages ved push til `main` og nightly 04:30 UTC.
 
 ## Kjør lokalt
 

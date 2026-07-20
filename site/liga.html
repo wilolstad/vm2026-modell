@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="nb">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Liga-prediktor · Elo × Poisson</title>
+<meta name="description" content="Live prediksjonsmodell for Eliteserien, Premier League, LaLiga, Bundesliga, Serie A, Liga Portugal og Saudi Pro League — klubb-Elo, bivariat Poisson og sesongsimulering.">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Liga-prediktor">
+<meta property="og:description" content="7 ligaer · klubb-Elo × bivariat Poisson · live data fra ESPN. Kampprediksjoner, tabell og simulerte tittel- og nedrykkssjanser.">
+<meta property="og:url" content="https://wilolstad.github.io/vm2026-modell/liga.html">
+<meta property="og:image" content="https://wilolstad.github.io/vm2026-modell/og.png">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=Barlow+Condensed:wght@600;700;800&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' fill='%23d4ff3f'/><text x='50' y='76' font-size='64' font-family='Arial Black,Arial' font-weight='900' text-anchor='middle' fill='%230c0f0b'>⚽</text></svg>">
+</head>
+<body>
+
+<header class="topbar">
+  <div class="topbar-inner">
+    <div class="brand">
+      <span class="brand-mark">LIGA</span>
+      <span class="brand-sub">Prediktor</span>
+    </div>
+    <nav class="topnav"><a href="index.html">VM 26 →</a></nav>
+    <div class="topbar-status" id="topbar-status">
+      <span class="dot dot-idle" id="status-dot"></span>
+      <span id="status-text">Henter data …</span>
+    </div>
+  </div>
+</header>
+
+<div class="ticker" id="ticker" aria-hidden="true">
+  <div class="ticker-track" id="ticker-track"></div>
+</div>
+
+<main class="wrap">
+
+  <section class="hero" id="hero">
+    <h1 class="masthead">Liga<span class="outline">prediktor</span></h1>
+    <p class="hero-sub">Samme modell som VM-prediktoren, nå for klubbfotball. <b>Klubb-Elo × bivariat Poisson</b>, kalibrert per liga — prediksjoner før avspark, omregnet live, og hele sesongen simulert.</p>
+    <div class="stats" id="stats"></div>
+  </section>
+
+  <section class="controls">
+    <div class="lg-row">
+      <select id="lg-select" class="lg-select" aria-label="Velg liga"></select>
+    </div>
+    <nav class="tabs" id="tabs">
+      <button data-tab="today"    class="tab">I dag</button>
+      <button data-tab="upcoming" class="tab">Kommende</button>
+      <button data-tab="results"  class="tab">Resultater</button>
+      <button data-tab="table"    class="tab">Tabell</button>
+      <button data-tab="sim"      class="tab">Sesongsim</button>
+      <button data-tab="power"    class="tab">Elo-rangering</button>
+    </nav>
+  </section>
+
+  <section id="content" class="content">
+    <div class="loading" id="loading">
+      <div class="spinner"></div>
+      <p>Laster kamper og ratinger …</p>
+    </div>
+  </section>
+
+  <section class="method">
+    <h2>Metode</h2>
+    <div class="method-grid">
+      <div>
+        <h3>1 · Klubb-Elo</h3>
+        <p>Ratingene hentes fra <a href="http://clubelo.com" rel="noopener">ClubElo</a> hver natt (Saudi Pro League dekkes ikke der — de ratingene beregnes ved å replaye alle resultater siden 2023 fra ESPN). Kamper spilt etter siste natt-oppdatering replays i nettleseren, så ratingene er alltid ferske. Hjemmelaget får +65 Elo i hjemmefordel.</p>
+      </div>
+      <div>
+        <h3>2 · Poisson per liga</h3>
+        <p>Elo-differansen mapper til forventet målproduksjon — men målsnittet kalibreres per liga fra forrige sesong: Serie A ligger på 2,4 mål per kamp, Bundesliga på 3,2. Samme power-splitt (1,2), bivariat Poisson og Dixon-Coles-korreksjon som VM-modellen.</p>
+      </div>
+      <div>
+        <h3>3 · Live in-play</h3>
+        <p>Under kamp vektes restproduksjonen med empirisk måltiming (sene mål er systematisk undervurdert av lineær tid), og sannsynlighetene regnes om gitt stilling, skudd på mål, ballbesittelse og røde kort — samme maskineri som VM-modellen.</p>
+      </div>
+      <div>
+        <h3>4 · Sesongsimulering</h3>
+        <p>Alle gjenstående serierunder simuleres 10&nbsp;000 ganger med Poisson-trukne resultater oppå dagens tabell. Andelen simuleringer der et lag ender som mester, i topp 4, på nedrykksplass eller i playoff gir sannsynlighetene i «Sesongsim». Tabellplassering avgjøres på poeng, målforskjell og scorede mål — ligaspesifikke regler som innbyrdes oppgjør er forenklet bort.</p>
+      </div>
+      <div>
+        <h3>5 · Ærlighet</h3>
+        <p>1X2-treff måles bare på prediksjoner som faktisk ble lagret <em>før</em> avspark i din nettleser — ingen etterpåklokskap. Der ESPN har odds vises markedets impliserte sannsynligheter ved siden av modellens. Modellen vet ingenting om skader, rotasjon eller kampprogram — bruk den som referanse, ikke fasit.</p>
+      </div>
+    </div>
+    <p class="method-note">Datakilder: ESPN (uoffisielt API) og ClubElo. Nyopprykkede lag uten ClubElo-rating får ligaens bunnrating minus 25. Ikke betting-råd.</p>
+  </section>
+
+</main>
+
+<footer class="footer">
+  <span>Liga-prediktor · bygget av William · <a href="index.html" style="color:inherit">VM 26-prediktoren</a></span>
+  <span id="last-updated"></span>
+</footer>
+
+<div class="modal-backdrop" id="modal" hidden>
+  <div class="modal" id="modal-card" role="dialog" aria-modal="true"></div>
+</div>
+
+<script src="liga.js"></script>
+</body>
+</html>
