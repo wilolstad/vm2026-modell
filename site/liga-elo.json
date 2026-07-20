@@ -732,32 +732,24 @@
   "por.1": {
    "name": "Liga Portugal",
    "teams": {
-    "Benfica": 1823.5,
     "Estoril": 1493.9,
     "FC Famalicao": 1591.0,
+    "Casa Pia": 1427.9,
+    "Vitória de Guimaraes": 1515.6,
+    "Arouca": 1500.7,
     "Estrela": 1403.2,
     "Sporting CP": 1847.9,
     "FC Porto": 1805.9,
     "Alverca": 1443.6,
-    "Gil Vicente": 1507.8,
-    "Rio Ave": 1451.3,
-    "Casa Pia": 1427.9,
+    "Benfica": 1823.5,
     "Moreirense": 1479.0,
     "Braga": 1698.9,
+    "Gil Vicente": 1507.8,
+    "Rio Ave": 1451.3,
     "Santa Clara": 1483.0,
-    "C.D. Nacional": 1451.0,
-    "Vitória de Guimaraes": 1515.6,
-    "Arouca": 1500.7
+    "C.D. Nacional": 1451.0
    },
    "meta": {
-    "Benfica": {
-     "short": "Benfica",
-     "abbr": "SLB"
-    },
-    "Académico de Viseu": {
-     "short": "Viseu",
-     "abbr": "AVF"
-    },
     "Estoril": {
      "short": "Estoril",
      "abbr": "EPF"
@@ -765,6 +757,22 @@
     "FC Famalicao": {
      "short": "FC Famalicao",
      "abbr": "FCF"
+    },
+    "Maritimo": {
+     "short": "Maritimo",
+     "abbr": "MAR"
+    },
+    "Casa Pia": {
+     "short": "Casa Pia",
+     "abbr": "CPAC"
+    },
+    "Vitória de Guimaraes": {
+     "short": "Vitória ",
+     "abbr": "VSC"
+    },
+    "Arouca": {
+     "short": "Arouca",
+     "abbr": "FCA"
     },
     "Estrela": {
      "short": "Estrela",
@@ -782,21 +790,13 @@
      "short": "Alverca",
      "abbr": "ALV"
     },
-    "Gil Vicente": {
-     "short": "Gil Vicente",
-     "abbr": "GVFC"
+    "Benfica": {
+     "short": "Benfica",
+     "abbr": "SLB"
     },
-    "Rio Ave": {
-     "short": "Rio Ave",
-     "abbr": "RAFC"
-    },
-    "Maritimo": {
-     "short": "Maritimo",
-     "abbr": "MAR"
-    },
-    "Casa Pia": {
-     "short": "Casa Pia",
-     "abbr": "CPAC"
+    "Académico de Viseu": {
+     "short": "Viseu",
+     "abbr": "AVF"
     },
     "Moreirense": {
      "short": "Moreirense",
@@ -806,6 +806,14 @@
      "short": "Braga",
      "abbr": "SCB"
     },
+    "Gil Vicente": {
+     "short": "Gil Vicente",
+     "abbr": "GVFC"
+    },
+    "Rio Ave": {
+     "short": "Rio Ave",
+     "abbr": "RAFC"
+    },
     "Santa Clara": {
      "short": "Santa Clara",
      "abbr": "CDSC"
@@ -813,14 +821,6 @@
     "C.D. Nacional": {
      "short": "Nacional",
      "abbr": "CDN"
-    },
-    "Vitória de Guimaraes": {
-     "short": "Vitória ",
-     "abbr": "VSC"
-    },
-    "Arouca": {
-     "short": "Arouca",
-     "abbr": "FCA"
     }
    },
    "mu": 2.683,
