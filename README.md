@@ -83,6 +83,26 @@ Serie A, Liga Portugal og Saudi Pro League.
   *før* avspark. Nyopprykkede lag uten ClubElo-rating (f.eks. Viseu, Marítimo)
   får ligaens bunnrating minus 25.
 
+### Eksperimentlogg liga (scripts/backtest.py)
+
+Backtest på to hele sesonger per liga med **pre-kamp-ClubElo** (per-klubb-
+historikk fra api.clubelo.com — ratingen slik den var før hver kamp, ærlig
+out-of-sample). Train = 2024-25 (2 294 kamper), validering = 2025-26 (2 338).
+Saudi: pre-kamp-ratinger fra egen kronologisk replay.
+
+| Endring | Resultat (validering, logloss 1X2) | Status |
+|---|---|---|
+| VM-parametre rett av (POW 1,2 / RHO −0,2 / BIV 0,4 / HFA 65) | 1,036 pooled — klart for aggressiv for klubb | Baseline |
+| Per-liga-tuning av alle 4 parametre | bedre train, dels verre validering (overfit på ~300 kamper/liga) | Forkastet |
+| Pooled form (POW 0,6 / RHO 0 / BIV 0,2) + HFA per liga | **0,970 pooled, bedre i alle 7 ligaer** | **Shippet** |
+
+Hovedfunn: Elo-vinnersannsynlighet skal mappe *flatere* til målandel enn 1:1
+(POW 0,6, ikke 1,2 — VM-tallet var tunet på 85 kamper og for skarpt),
+Dixon-Coles-korreksjonen trengs ikke når bivariat komponent 0,2 tar
+uavgjort-massen, og hjemmefordelen varierer reelt per liga:
+Bundesliga +10, PL/Saudi +30, Eliteserien/Serie A +45, LaLiga/Portugal +65.
+Ship-regel som før: bedre på train OG validering, ellers beholdes baseline.
+
 ## Struktur
 
 ```

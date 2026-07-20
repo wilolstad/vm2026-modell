@@ -91,6 +91,7 @@ ALIASES = {
     "Hamarkameratene": "Ham-Kam",
     "Stromsgodset": "Stroemsgodset",
     "Strømsgodset": "Stroemsgodset",
+    "Odds BK": "Odd",
 }
 
 
@@ -127,8 +128,8 @@ def _ascii(s):
 ALIASES_NORM = {_ascii(k): v for k, v in ALIASES.items()}
 
 
-def match_elo(display, country_rows):
-    """Finn ClubElo-rating for et ESPN-lagnavn innen ett lands klubber."""
+def match_club(display, country_rows):
+    """Finn (ClubElo-navn, rating) for et ESPN-lagnavn innen ett lands klubber."""
     alias = ALIASES.get(display) or ALIASES_NORM.get(_ascii(display))
     target = norm(alias) if alias else norm(display)
     if not target:
@@ -136,7 +137,7 @@ def match_elo(display, country_rows):
     # eksakt normalisert match
     for cname, elo in country_rows:
         if norm(cname) == target:
-            return elo
+            return (cname, elo)
     # token-subset: alle tokens i det ene navnet finnes i det andre
     tt = set(target.split())
     best = None
@@ -145,8 +146,13 @@ def match_elo(display, country_rows):
         if tt <= ct or ct <= tt:
             if best is not None:
                 return None  # tvetydig — heller fallback enn feil lag
-            best = elo
+            best = (cname, elo)
     return best
+
+
+def match_elo(display, country_rows):
+    m = match_club(display, country_rows)
+    return m[1] if m else None
 
 
 def espn_events(lg, window):

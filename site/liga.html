@@ -71,11 +71,11 @@
     <div class="method-grid">
       <div>
         <h3>1 · Klubb-Elo</h3>
-        <p>Ratingene hentes fra <a href="http://clubelo.com" rel="noopener">ClubElo</a> hver natt (Saudi Pro League dekkes ikke der — de ratingene beregnes ved å replaye alle resultater siden 2023 fra ESPN). Kamper spilt etter siste natt-oppdatering replays i nettleseren, så ratingene er alltid ferske. Hjemmelaget får +65 Elo i hjemmefordel.</p>
+        <p>Ratingene hentes fra <a href="http://clubelo.com" rel="noopener">ClubElo</a> hver natt (Saudi Pro League dekkes ikke der — de ratingene beregnes ved å replaye alle resultater siden 2023 fra ESPN). Kamper spilt etter siste natt-oppdatering replays i nettleseren, så ratingene er alltid ferske. Hjemmefordelen er backtestet per liga — fra +10 Elo i Bundesliga til +65 i LaLiga og Liga Portugal.</p>
       </div>
       <div>
         <h3>2 · Poisson per liga</h3>
-        <p>Elo-differansen mapper til forventet målproduksjon — men målsnittet kalibreres per liga fra forrige sesong: Serie A ligger på 2,4 mål per kamp, Bundesliga på 3,2. Samme power-splitt (1,2), bivariat Poisson og Dixon-Coles-korreksjon som VM-modellen.</p>
+        <p>Elo-differansen mapper til forventet målproduksjon — målsnittet kalibreres per liga fra forrige sesong (Serie A 2,4 mål per kamp, Bundesliga 3,2). Formparametrene er re-backtestet på 4 600+ klubbkamper med pre-kamp-ratinger: VM-verdiene var for aggressive for klubbfotball, så power-splitten er senket til 0,6 og prediksjonene ble målbart bedre i alle sju ligaene (logloss 1,036 → 0,970 på valideringssesongen).</p>
       </div>
       <div>
         <h3>3 · Live in-play</h3>

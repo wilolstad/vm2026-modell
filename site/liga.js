@@ -7,25 +7,32 @@
 
 const ESPN_BASE = "https://site.api.espn.com/apis/site/v2/sports/soccer/";
 
-/* relDirect = direkte nedrykksplasser, playoff = kvalik-plass rett over */
+/* relDirect = direkte nedrykksplasser, playoff = kvalik-plass rett over.
+   hfa = hjemmefordel i Elo, backtestet per liga (scripts/backtest.py) på
+   sesongene 2024-25 (train) og 2025-26 (validering) med pre-kamp-ClubElo. */
 const LEAGUES = {
-  "nor.1": { name: "Eliteserien",      flagg: "🇳🇴", relDirect: 2, playoff: true,  muFb: 3.1 },
-  "eng.1": { name: "Premier League",   flagg: "🏴", relDirect: 3, playoff: false, muFb: 2.8 },
-  "esp.1": { name: "LaLiga",           flagg: "🇪🇸", relDirect: 3, playoff: false, muFb: 2.7 },
-  "ger.1": { name: "Bundesliga",       flagg: "🇩🇪", relDirect: 2, playoff: true,  muFb: 3.1 },
-  "ita.1": { name: "Serie A",          flagg: "🇮🇹", relDirect: 3, playoff: false, muFb: 2.6 },
-  "por.1": { name: "Liga Portugal",    flagg: "🇵🇹", relDirect: 2, playoff: true,  muFb: 2.7 },
-  "ksa.1": { name: "Saudi Pro League", flagg: "🇸🇦", relDirect: 3, playoff: false, muFb: 3.0 },
+  "nor.1": { name: "Eliteserien",      flagg: "🇳🇴", relDirect: 2, playoff: true,  muFb: 3.1, hfa: 45 },
+  "eng.1": { name: "Premier League",   flagg: "🏴", relDirect: 3, playoff: false, muFb: 2.8, hfa: 30 },
+  "esp.1": { name: "LaLiga",           flagg: "🇪🇸", relDirect: 3, playoff: false, muFb: 2.7, hfa: 65 },
+  "ger.1": { name: "Bundesliga",       flagg: "🇩🇪", relDirect: 2, playoff: true,  muFb: 3.1, hfa: 10 },
+  "ita.1": { name: "Serie A",          flagg: "🇮🇹", relDirect: 3, playoff: false, muFb: 2.6, hfa: 45 },
+  "por.1": { name: "Liga Portugal",    flagg: "🇵🇹", relDirect: 2, playoff: true,  muFb: 2.7, hfa: 65 },
+  "ksa.1": { name: "Saudi Pro League", flagg: "🇸🇦", relDirect: 3, playoff: false, muFb: 3.0, hfa: 30 },
 };
 
 const SIM_RUNS = 10000;
 const SIM_CHUNK = 400;
-const HFA = 65;         // hjemmefordel i klubbfotball (ClubElo-nivå)
 const K_REPLAY = 20;    // Elo-K for kamper spilt etter natt-snapshotet
-const POW = 1.2;
-const BIV = 0.4;
-const RHO = -0.2;
+/* Formparametre delt på tvers av ligaer, backtestet pooled på 2 294 kamper og
+   validert på 2 338 (logloss 1,036 -> 0,970, bedre i ALLE sju ligaer).
+   VM-verdiene (POW 1,2 / RHO -0,2 / BIV 0,4) var for aggressive for klubb:
+   Elo-vinnersannsynlighet skal mappe flatere til målandel enn 1:1. */
+const POW = 0.6;
+const BIV = 0.2;
+const RHO = 0.0;
 const MAX_G = 8;
+
+function HFA() { return LEAGUES[S.lg]?.hfa ?? 45; }
 const MU_WEIGHT = 60;   // pseudo-kamper på forrige sesongs målsnitt
 
 /* Empirisk måltiming i klubbfotball per 15-min-bolk (inkl. tilleggstid) */
@@ -112,7 +119,7 @@ function grid(lh, la, baseH = 0, baseA = 0, dc = false) {
 }
 
 function predict(eloH, eloA) {
-  const { lh, la } = lambdas(eloH + HFA, eloA);
+  const { lh, la } = lambdas(eloH + HFA(), eloA);
   return { ...grid(lh, la, 0, 0, true), lh, la };
 }
 
@@ -134,7 +141,7 @@ function remainingGoalShare(t) {
 }
 
 function predictLive(m) {
-  const { lh, la } = lambdas(teamElo(m.home.name) + HFA, teamElo(m.away.name));
+  const { lh, la } = lambdas(teamElo(m.home.name) + HFA(), teamElo(m.away.name));
   const played = Math.min(m.clockMin ?? 0, 90);
   const rem = remainingGoalShare(played);
 
@@ -157,7 +164,7 @@ function predictLive(m) {
 
 /* O/U + BTTS fra målmodellen */
 function goalMarkets(m) {
-  const { lh, la } = lambdas(teamElo(m.home.name) + HFA, teamElo(m.away.name));
+  const { lh, la } = lambdas(teamElo(m.home.name) + HFA(), teamElo(m.away.name));
   let pO15 = 0, pO25 = 0, pO35 = 0, pBTTS = 0, tot = 0;
   const l3 = BIV * Math.min(lh, la), l1 = lh - l3, l2 = la - l3;
   for (let x3 = 0; x3 <= 5; x3++) {
@@ -309,7 +316,7 @@ function applyElo() {
     const res = m.home.score > m.away.score ? 1 : m.home.score < m.away.score ? 0 : 0.5;
     const gd = Math.abs(m.home.score - m.away.score);
     const G = gd <= 1 ? 1 : gd === 2 ? 1.5 : (11 + gd) / 8;
-    const we = eloExp(teamElo(m.home.name) + HFA - teamElo(m.away.name));
+    const we = eloExp(teamElo(m.home.name) + HFA() - teamElo(m.away.name));
     const delta = K_REPLAY * G * (res - we);
     S.elo[m.home.name] = teamElo(m.home.name) + delta;
     S.elo[m.away.name] = teamElo(m.away.name) - delta;
@@ -385,7 +392,7 @@ async function simSeason(runs) {
     .map((m) => {
       // live kamper simuleres fra nåværende stilling og resttid
       let lh, la, bh = 0, ba = 0;
-      const L = lambdas(teamElo(m.home.name) + HFA, teamElo(m.away.name));
+      const L = lambdas(teamElo(m.home.name) + HFA(), teamElo(m.away.name));
       if (m.state === "in") {
         const rem = remainingGoalShare(Math.min(m.clockMin ?? 0, 90));
         lh = L.lh * rem; la = L.la * rem;
