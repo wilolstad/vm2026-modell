@@ -214,12 +214,18 @@ def pois_row(lam, n):
     return row
 
 
-def probs(eh, ea, mu, p):
-    """(pH, pD, pA, pO25) med bivariat Poisson + Dixon-Coles."""
+def base_lambdas(eh, ea, mu, p):
     we = 1 / (1 + 10 ** (-(eh + p["hfa"] - ea) / 400))
     wg = we ** p["pow"] / (we ** p["pow"] + (1 - we) ** p["pow"])
-    lh = max(0.2, mu * wg)
-    la = max(0.2, mu * (1 - wg))
+    return max(0.2, mu * wg), max(0.2, mu * (1 - wg))
+
+
+def probs(eh, ea, mu, p, fh=1.0, fa=1.0):
+    """(pH, pD, pA, pO25) med bivariat Poisson + Dixon-Coles.
+    fh/fa = angreps-/forsvarsjustering multiplisert på lambdaene."""
+    lh, la = base_lambdas(eh, ea, mu, p)
+    lh = max(0.2, lh * fh)
+    la = max(0.2, la * fa)
     l3 = p["biv"] * min(lh, la)
     l1, l2 = lh - l3, la - l3
     rho = p["rho"]
@@ -250,16 +256,36 @@ def probs(eh, ea, mu, p):
 
 
 def evaluate(matches, mu_prior, p):
-    """1X2-logloss + O/U 2,5-Brier, med løpende mu som i frontend."""
+    """1X2-logloss + O/U 2,5-Brier, med løpende mu som i frontend.
+
+    Med p["adC"] satt: walk-forward angreps-/forsvarsfaktorer per lag.
+    att = (scorede + C) / (Elo-forventede + C), def tilsvarende for baklengs —
+    shrinkage C er målt i mål, så faktorene starter på 1,0 og får tyngde
+    utover i sesongen. Demping adG på produktet. Oppdateres ETTER at kampen
+    er predikert (ærlig walk-forward), mot Elo-basens forventning."""
     ll = br = 0.0
     cum_g = cum_m = 0
+    adC, adG = p.get("adC"), p.get("adG", 0.5)
+    st = {}  # lag -> [gf_obs, gf_exp, ga_obs, ga_exp]
     for m in matches:
         mu = (mu_prior * MU_WEIGHT + cum_g) / (MU_WEIGHT + cum_m)
-        pH, pD, pA, pO = probs(m["eh"], m["ea"], mu, p)
+        fh = fa = 1.0
+        if adC:
+            sh = st.get(m["h"], (0.0, 0.0, 0.0, 0.0))
+            sa = st.get(m["a"], (0.0, 0.0, 0.0, 0.0))
+            fh = (((sh[0] + adC) / (sh[1] + adC)) * ((sa[2] + adC) / (sa[3] + adC))) ** adG
+            fa = (((sa[0] + adC) / (sa[1] + adC)) * ((sh[2] + adC) / (sh[3] + adC))) ** adG
+        pH, pD, pA, pO = probs(m["eh"], m["ea"], mu, p, fh, fa)
         got = pH if m["hs"] > m["as"] else pA if m["hs"] < m["as"] else pD
         ll += -math.log(max(got, 1e-9))
         over = 1.0 if m["hs"] + m["as"] > 2.5 else 0.0
         br += (pO - over) ** 2
+        if adC:
+            lh, la = base_lambdas(m["eh"], m["ea"], mu, p)
+            sh = st.setdefault(m["h"], [0.0, 0.0, 0.0, 0.0])
+            sa = st.setdefault(m["a"], [0.0, 0.0, 0.0, 0.0])
+            sh[0] += m["hs"]; sh[1] += lh; sh[2] += m["as"]; sh[3] += la
+            sa[0] += m["as"]; sa[1] += la; sa[2] += m["hs"]; sa[3] += lh
         cum_g += m["hs"] + m["as"]
         cum_m += 1
     n = len(matches)
@@ -319,15 +345,15 @@ def main():
     shape = {k: DEFAULT[k] for k in ("pow", "rho", "biv")}
     hfa = {lg: DEFAULT["hfa"] for lg in data}
 
-    def pooled_ll(shape_p, hfa_p, split):
-        tot_ll = tot_n = 0
+    def pooled_ll(shape_p, hfa_p, split, extra=None, metric=0):
+        tot = tot_n = 0
         for lg, d in data.items():
-            p = {**shape_p, "hfa": hfa_p[lg]}
+            p = {**shape_p, "hfa": hfa_p[lg], **(extra or {})}
             mu = d["mu_train"] if split == "train" else d["mu_val"]
-            ll, _ = evaluate(d[split], mu, p)
-            tot_ll += ll * len(d[split])
+            res = evaluate(d[split], mu, p)
+            tot += res[metric] * len(d[split])
             tot_n += len(d[split])
-        return tot_ll / tot_n
+        return tot / tot_n
 
     # alternerende koordinat-søk: per-liga HFA <-> felles form
     for it in range(3):
@@ -368,6 +394,44 @@ def main():
     print(f"\npooled validering: {b0:.4f} -> {bT:.4f}  ({'SHIPPES' if ok_all else 'sjekk ligaene over'})")
     print("\n---- til liga.js (LEAGUES-parametre) ----")
     print(json.dumps(shipped, indent=2))
+
+    # ---- steg 2: angreps-/forsvarssplitt (walk-forward) oppå shippet form ----
+    print("\nAngreps-/forsvarssplitt — grid over shrinkage C (mål) og demping g:")
+    base_ll_t = pooled_ll(shape, hfa, "train")
+    base_ll_v = pooled_ll(shape, hfa, "val")
+    base_br_v = pooled_ll(shape, hfa, "val", metric=1)
+    best_ad, best_ll = None, base_ll_t
+    for C in (10, 20, 40, 80):
+        for g in (0.25, 0.5, 0.75, 1.0):
+            ll = pooled_ll(shape, hfa, "train", {"adC": C, "adG": g})
+            marker = ""
+            if ll < best_ll - 1e-5:
+                best_ad, best_ll = {"adC": C, "adG": g}, ll
+                marker = "  <- beste hittil"
+            print(f"  C={C:3} g={g:.2f}: train {ll:.4f}{marker}")
+
+    if best_ad is None:
+        print(f"\nIngen (C, g) slår ren Elo-base på train ({base_ll_t:.4f}) — FORKASTES.")
+        return
+
+    ad_ll_v = pooled_ll(shape, hfa, "val", best_ad)
+    ad_br_v = pooled_ll(shape, hfa, "val", best_ad, metric=1)
+    print(f"\nvalgt {best_ad}: train {base_ll_t:.4f} -> {best_ll:.4f}")
+    print(f"pooled validering 1X2: {base_ll_v:.4f} -> {ad_ll_v:.4f}"
+          f"   O/U-Brier: {base_br_v:.4f} -> {ad_br_v:.4f}")
+    print(f"{'liga':22} {'val 1X2 uten -> med':>24} {'val Brier uten -> med':>24}")
+    worse = 0
+    for lg, d in data.items():
+        p0 = {**shape, "hfa": hfa[lg]}
+        pA_ = {**p0, **best_ad}
+        l0, b0_ = evaluate(d["val"], d["mu_val"], p0)
+        l1, b1_ = evaluate(d["val"], d["mu_val"], pA_)
+        if l1 > l0 + 0.002:
+            worse += 1
+        print(f"{lg:22} {l0:.4f} -> {l1:.4f}          {b0_:.4f} -> {b1_:.4f}"
+              f"{'   <-- verre' if l1 > l0 + 0.002 else ''}")
+    ship_ad = ad_ll_v < base_ll_v - 0.001 and worse == 0
+    print(f"\natt/def: {'SHIPPES ' + json.dumps(best_ad) if ship_ad else 'FORKASTES (ikke bedre på validering)'}")
 
 
 if __name__ == "__main__":

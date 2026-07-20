@@ -75,7 +75,7 @@
       </div>
       <div>
         <h3>2 · Poisson per liga</h3>
-        <p>Elo-differansen mapper til forventet målproduksjon — målsnittet kalibreres per liga fra forrige sesong (Serie A 2,4 mål per kamp, Bundesliga 3,2). Formparametrene er re-backtestet på 4 600+ klubbkamper med pre-kamp-ratinger: VM-verdiene var for aggressive for klubbfotball, så power-splitten er senket til 0,6 og prediksjonene ble målbart bedre i alle sju ligaene (logloss 1,036 → 0,970 på valideringssesongen).</p>
+        <p>Elo-differansen mapper til forventet målproduksjon — målsnittet kalibreres per liga fra forrige sesong (Serie A 2,4 mål per kamp, Bundesliga 3,2). Formparametrene er re-backtestet på 4 600+ klubbkamper med pre-kamp-ratinger: VM-verdiene var for aggressive for klubbfotball, så power-splitten er senket til 0,6 og prediksjonene ble målbart bedre i alle sju ligaene (logloss 1,036 → 0,970 på valideringssesongen). I tillegg justeres lambdaene med en angreps-/forsvarssplitt per lag — scorer eller slipper et lag inn systematisk mer enn Elo-en tilsier, fanges det opp utover i sesongen (kraftig shrinkage, validert marginal gevinst).</p>
       </div>
       <div>
         <h3>3 · Live in-play</h3>
@@ -87,7 +87,7 @@
       </div>
       <div>
         <h3>5 · Ærlighet</h3>
-        <p>1X2-treff måles bare på prediksjoner som faktisk ble lagret <em>før</em> avspark i din nettleser — ingen etterpåklokskap. Der ESPN har odds vises markedets impliserte sannsynligheter ved siden av modellens. Modellen vet ingenting om skader, rotasjon eller kampprogram — bruk den som referanse, ikke fasit.</p>
+        <p>Modellens pre-kamp-sannsynligheter snapshottes hver natt og committes til <a href="https://github.com/wilolstad/vm2026-modell" rel="noopener">repoet</a> — når kampen er spilt gjøres de opp mot fasit. Treffprosenten i toppen kommer fra dette globale regnskapet, som er etterprøvbart i git-historikken: ingen etterpåklokskap. Der ESPN har odds vises markedets impliserte sannsynligheter ved siden av modellens. Modellen vet ingenting om skader, rotasjon eller kampprogram — bruk den som referanse, ikke fasit.</p>
       </div>
     </div>
     <p class="method-note">Datakilder: ESPN (uoffisielt API) og ClubElo. Nyopprykkede lag uten ClubElo-rating får ligaens bunnrating minus 25. Ikke betting-råd.</p>

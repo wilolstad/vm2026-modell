@@ -95,6 +95,13 @@ Saudi: pre-kamp-ratinger fra egen kronologisk replay.
 | VM-parametre rett av (POW 1,2 / RHO −0,2 / BIV 0,4 / HFA 65) | 1,036 pooled — klart for aggressiv for klubb | Baseline |
 | Per-liga-tuning av alle 4 parametre | bedre train, dels verre validering (overfit på ~300 kamper/liga) | Forkastet |
 | Pooled form (POW 0,6 / RHO 0 / BIV 0,2) + HFA per liga | **0,970 pooled, bedre i alle 7 ligaer** | **Shippet** |
+| Angreps-/forsvarssplitt, walk-forward (C=80 mål, demping 0,5) | 0,970 → 0,969 pooled, O/U-Brier 0,2463 → 0,2456 — marginal, best i Eliteserien (−0,008), ingen liga verre | **Shippet** (ærlig merket: liten) |
+| Samme, svakere shrinkage (C=10–40) | bedre train, gevinsten forsvant på validering | Forkastet |
+
+**Globalt prediksjonsregnskap** (`scripts/ledger.py`): modellens pre-kamp-
+sannsynligheter snapshottes nightly og committes til repoet (`site/ledger.json`);
+spilte kamper gjøres opp mot fasit. Treffprosenten på liga-siden kommer derfra —
+etterprøvbart i git-historikken, ikke bare localStorage.
 
 Hovedfunn: Elo-vinnersannsynlighet skal mappe *flatere* til målandel enn 1:1
 (POW 0,6, ikke 1,2 — VM-tallet var tunet på 85 kamper og for skarpt),

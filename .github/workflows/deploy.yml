@@ -4,11 +4,11 @@ on:
   push:
     branches: [main]
   schedule:
-    - cron: "30 4 * * *"   # nightly: ferske klubb-Elo før deploy
+    - cron: "30 4 * * *"   # nightly: ferske klubb-Elo + prediksjonsregnskap
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
   pages: write
   id-token: write
 
@@ -27,10 +27,24 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      # Feiler ClubElo/ESPN, deployes den committede liga-elo.json i stedet —
-      # siden virker uansett, bare med ett døgn gamle ratinger.
+      # Feiler ClubElo/ESPN, deployes de committede filene i stedet —
+      # siden virker uansett, bare med ett døgn gamle data.
       - name: Bygg liga-elo.json
         run: python scripts/liga_build.py || echo "::warning::liga_build feilet — bruker committet liga-elo.json"
+      - name: Oppdater prediksjonsregnskap
+        run: python scripts/ledger.py || echo "::warning::ledger feilet — bruker committet ledger.json"
+      # Commit tilbake så regnskapet er etterprøvbart i git-historikken
+      # (push med GITHUB_TOKEN trigger ikke nye workflow-kjøringer)
+      - name: Commit ferske data
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add site/liga-elo.json site/ledger.json
+          if ! git diff --cached --quiet; then
+            git commit -m "nightly: liga-elo + prediksjonsregnskap [skip ci]"
+            git pull --rebase origin main
+            git push
+          fi
       - uses: actions/upload-pages-artifact@v3
         with:
           path: site

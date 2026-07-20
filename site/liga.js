@@ -31,8 +31,22 @@ const POW = 0.6;
 const BIV = 0.2;
 const RHO = 0.0;
 const MAX_G = 8;
+/* Angreps-/forsvarssplitt (walk-forward fra liga-elo.json, bygget nightly):
+   att = (scoret + C)/(Elo-forventet + C), def tilsvarende baklengs, dempet
+   med eksponent G. Backtestet: marginal men konsistent gevinst (validering
+   0,9704 -> 0,9691 pooled 1X2, best i Eliteserien; O/U-Brier også bedre). */
+const AD_C = 80;
+const AD_G = 0.5;
 
 function HFA() { return LEAGUES[S.lg]?.hfa ?? 45; }
+
+function adFactors(homeName, awayName) {
+  const z = [0, 0, 0, 0];
+  const h = S.ad?.[homeName] || z, a = S.ad?.[awayName] || z;
+  const fh = Math.pow(((h[0] + AD_C) / (h[1] + AD_C)) * ((a[2] + AD_C) / (a[3] + AD_C)), AD_G);
+  const fa = Math.pow(((a[0] + AD_C) / (a[1] + AD_C)) * ((h[2] + AD_C) / (h[3] + AD_C)), AD_G);
+  return { fh, fa };
+}
 const MU_WEIGHT = 60;   // pseudo-kamper på forrige sesongs målsnitt
 
 /* Empirisk måltiming i klubbfotball per 15-min-bolk (inkl. tilleggstid) */
@@ -118,9 +132,11 @@ function grid(lh, la, baseH = 0, baseA = 0, dc = false) {
   return { pH: pH / tot, pD: pD / tot, pA: pA / tot, top };
 }
 
-function predict(eloH, eloA) {
-  const { lh, la } = lambdas(eloH + HFA(), eloA);
-  return { ...grid(lh, la, 0, 0, true), lh, la };
+function predict(m) {
+  const { lh, la } = lambdas(teamElo(m.home.name) + HFA(), teamElo(m.away.name));
+  const { fh, fa } = adFactors(m.home.name, m.away.name);
+  const ah = Math.max(0.2, lh * fh), aa = Math.max(0.2, la * fa);
+  return { ...grid(ah, aa, 0, 0, true), lh: ah, la: aa };
 }
 
 function teamElo(name) {
@@ -141,7 +157,9 @@ function remainingGoalShare(t) {
 }
 
 function predictLive(m) {
-  const { lh, la } = lambdas(teamElo(m.home.name) + HFA(), teamElo(m.away.name));
+  const L = lambdas(teamElo(m.home.name) + HFA(), teamElo(m.away.name));
+  const F = adFactors(m.home.name, m.away.name);
+  const lh = Math.max(0.2, L.lh * F.fh), la = Math.max(0.2, L.la * F.fa);
   const played = Math.min(m.clockMin ?? 0, 90);
   const rem = remainingGoalShare(played);
 
@@ -164,7 +182,9 @@ function predictLive(m) {
 
 /* O/U + BTTS fra målmodellen */
 function goalMarkets(m) {
-  const { lh, la } = lambdas(teamElo(m.home.name) + HFA(), teamElo(m.away.name));
+  const L = lambdas(teamElo(m.home.name) + HFA(), teamElo(m.away.name));
+  const F = adFactors(m.home.name, m.away.name);
+  const lh = Math.max(0.2, L.lh * F.fh), la = Math.max(0.2, L.la * F.fa);
   let pO15 = 0, pO25 = 0, pO35 = 0, pBTTS = 0, tot = 0;
   const l3 = BIV * Math.min(lh, la), l1 = lh - l3, l2 = la - l3;
   for (let x3 = 0; x3 <= 5; x3++) {
@@ -283,6 +303,7 @@ function applyElo() {
   const entry = S.eloData?.leagues?.[S.lg];
   S.elo = {};
   S.eloSnap = {};
+  S.ad = entry?.ad || {};
   S.mu = entry?.mu ?? LEAGUES[S.lg].muFb;
   if (entry) {
     for (const [name, elo] of Object.entries(entry.teams)) {
@@ -326,7 +347,7 @@ function applyElo() {
   // prediksjoner for kommende/live kamper
   for (const m of S.matches) {
     if (m.state === "post") continue;
-    m.pred = predict(teamElo(m.home.name), teamElo(m.away.name));
+    m.pred = predict(m);
     if (m.state === "in") m.livePred = predictLive(m);
   }
 }
@@ -392,7 +413,9 @@ async function simSeason(runs) {
     .map((m) => {
       // live kamper simuleres fra nåværende stilling og resttid
       let lh, la, bh = 0, ba = 0;
-      const L = lambdas(teamElo(m.home.name) + HFA(), teamElo(m.away.name));
+      const L0 = lambdas(teamElo(m.home.name) + HFA(), teamElo(m.away.name));
+      const F = adFactors(m.home.name, m.away.name);
+      const L = { lh: Math.max(0.2, L0.lh * F.fh), la: Math.max(0.2, L0.la * F.fa) };
       if (m.state === "in") {
         const rem = remainingGoalShare(Math.min(m.clockMin ?? 0, 90));
         lh = L.lh * rem; la = L.la * rem;
@@ -552,11 +575,16 @@ function renderStats() {
     }
   } catch { /* privat modus */ }
 
+  // globalt regnskap (nightly commit) foretrekkes; localStorage som fallback
+  const glob = S.ledger?.leagues?.[S.lg]?.agg;
+  const hitCell = glob && glob.n > 0
+    ? `<div class="stat hit"><div class="v">${Math.round((glob.hits / glob.n) * 100)} %</div><div class="k">1X2-treff (globalt, ${glob.n} målt)</div></div>`
+    : `<div class="stat hit"><div class="v">${preds ? Math.round((hits / preds) * 100) + " %" : "–"}</div><div class="k">1X2-treff (${preds} målt)</div></div>`;
   $("stats").innerHTML = `
     <div class="stat"><div class="v">${played.length}<small> / ${total}</small></div><div class="k">Kamper spilt</div></div>
     <div class="stat"><div class="v">${goals}</div><div class="k">Mål totalt</div></div>
     <div class="stat"><div class="v">${today}</div><div class="k">Kamper i dag</div></div>
-    <div class="stat hit"><div class="v">${preds ? Math.round((hits / preds) * 100) + " %" : "–"}</div><div class="k">1X2-treff (${preds} målt)</div></div>
+    ${hitCell}
     <div class="stat hit"><div class="v">${preds ? Math.round((exact / preds) * 100) + " %" : "–"}</div><div class="k">Klink</div></div>`;
 }
 
@@ -897,11 +925,18 @@ function dataHash() {
 }
 
 async function loadEloData() {
-  if (S.eloData) return;
-  try {
-    const res = await fetchT("liga-elo.json");
-    if (res.ok) S.eloData = await res.json();
-  } catch { /* frontend faller tilbake på muFb + flat rating */ }
+  if (!S.eloData) {
+    try {
+      const res = await fetchT("liga-elo.json");
+      if (res.ok) S.eloData = await res.json();
+    } catch { /* frontend faller tilbake på muFb + flat rating */ }
+  }
+  if (!S.ledger) {
+    try {
+      const res = await fetchT("ledger.json");
+      if (res.ok) S.ledger = await res.json();
+    } catch { /* regnskapet er nice-to-have */ }
+  }
 }
 
 async function load() {

@@ -33,12 +33,24 @@ LEAGUES = {
     "ksa.1": ("Saudi Pro League", None, "20250801-20260601"),
 }
 
-# Vindu for å finne lagene i inneværende sesong
-CURRENT = {
-    "nor.1": "20260301-20261215",
-    "ksa.1": "20260801-20270601",
-    "_default": "20260801-20270601",
+# Modellparametre (backtestet i backtest.py — se README-eksperimentloggen).
+# Deles av ledger.py; frontenden har sin egen kopi i liga.js.
+PARAMS = {
+    "pow": 0.6, "rho": 0.0, "biv": 0.2,
+    "adC": 80, "adG": 0.5,
+    "hfa": {"nor.1": 45, "eng.1": 30, "esp.1": 65, "ger.1": 10,
+            "ita.1": 45, "por.1": 65, "ksa.1": 30},
 }
+
+
+def current_window(lg):
+    """Inneværende sesongs vindu — samme logikk som seasonWindow() i liga.js."""
+    today = date.today()
+    y = today.year
+    if lg == "nor.1":
+        return f"{y}0201-{y}1220"
+    start = y if today.month >= 7 else y - 1
+    return f"{start}0715-{start + 1}0630"
 
 # ESPN displayName -> ClubElo-navn der normalisering ikke strekker til
 ALIASES = {
@@ -179,11 +191,10 @@ def season_mu(lg, window):
     return (round(goals / n, 3), n) if n >= 50 else (None, n)
 
 
-def current_teams(lg):
+def teams_from_events(evs):
     """Lagnavn i inneværende sesong fra terminlisten."""
-    window = CURRENT.get(lg, CURRENT["_default"])
     teams = {}
-    for ev in espn_events(lg, window):
+    for ev in evs:
         for c in ev["competitions"][0]["competitors"]:
             t = c["team"]
             teams[t["displayName"]] = {
@@ -191,6 +202,50 @@ def current_teams(lg):
                 "abbr": t.get("abbreviation") or t["displayName"][:3].upper(),
             }
     return teams
+
+
+def ad_update(lg, evs, entry, prev_entry, window):
+    """Walk-forward angreps-/forsvarstilstand per lag: [scoret, forventet,
+    baklengs, forventet baklengs] i mål. Inkrementell: nye resultater regnes
+    mot dagens ratinger (≤1 døgn gamle ≈ pre-kamp — validert i backtest.py).
+    Ny sesong (nytt vindu) nullstiller tilstanden, som i backtesten."""
+    ad, done = {}, set()
+    if prev_entry and prev_entry.get("adWindow") == window:
+        ad = {k: list(v) for k, v in (prev_entry.get("ad") or {}).items()}
+        done = set(prev_entry.get("adDone") or [])
+
+    mu = entry.get("mu") or 2.7
+    hfa = PARAMS["hfa"].get(lg, 45)
+    pw = PARAMS["pow"]
+    fallback = min(entry["teams"].values()) - 25 if entry["teams"] else 1500
+
+    new = []
+    for ev in evs:
+        if ev["status"]["type"]["state"] != "post" or ev["id"] in done:
+            continue
+        comp = sorted(ev["competitions"][0]["competitors"],
+                      key=lambda c: 0 if c["homeAway"] == "home" else 1)
+        try:
+            h, a = comp
+            new.append((ev["date"], ev["id"], h["team"]["displayName"], a["team"]["displayName"],
+                        int(h["score"]), int(a["score"])))
+        except (KeyError, ValueError, TypeError):
+            continue
+
+    for _, mid, hn, an, hs, gs in sorted(new):
+        eh = entry["teams"].get(hn, fallback)
+        ea = entry["teams"].get(an, fallback)
+        we = 1 / (1 + 10 ** (-(eh + hfa - ea) / 400))
+        wg = we ** pw / (we ** pw + (1 - we) ** pw)
+        lh = max(0.2, mu * wg)
+        la = max(0.2, mu * (1 - wg))
+        for t, gf, gfe, ga, gae in ((hn, hs, lh, gs, la), (an, gs, la, hs, lh)):
+            s = ad.setdefault(t, [0.0, 0.0, 0.0, 0.0])
+            s[0] += gf; s[1] += gfe; s[2] += ga; s[3] += gae
+        done.add(mid)
+
+    ad = {t: [round(x, 2) for x in v] for t, v in ad.items()}
+    return ad, sorted(done)
 
 
 def saudi_elo():
@@ -250,11 +305,20 @@ def main():
     print(f"ClubElo: {sum(len(v) for v in by_country.values())} klubber, "
           f"{len(by_country)} land")
 
+    prev_leagues = {}
+    if OUT.exists():
+        try:
+            prev_leagues = json.loads(OUT.read_text()).get("leagues", {})
+        except (json.JSONDecodeError, OSError):
+            pass
+
     out = {"generated": today.isoformat(), "leagues": {}}
     ok = True
     for lg, (name, country, mu_window) in LEAGUES.items():
         print(f"{name} ({lg}):")
-        teams = current_teams(lg)
+        window = current_window(lg)
+        evs = espn_events(lg, window)
+        teams = teams_from_events(evs)
         ratings = saudi_elo() if country is None else None
         # terminliste ikke publisert ennå (typisk Saudi i sommerpausen):
         # bruk lagene fra replay-ratingene så Elo-tabellen kan vises likevel
@@ -284,6 +348,12 @@ def main():
               (f" — MANGLER: {missing}" if missing else ""))
         if teams and matched < len(teams) * 0.8:
             ok = False
+
+        entry["adWindow"] = window
+        entry["ad"], entry["adDone"] = ad_update(lg, evs, entry, prev_leagues.get(lg), window)
+        n_new = len(entry["adDone"]) - len(prev_leagues.get(lg, {}).get("adDone", [])
+                                          if prev_leagues.get(lg, {}).get("adWindow") == window else [])
+        print(f"  att/def: {len(entry['ad'])} lag, {n_new} nye kamper regnskapsført")
         out["leagues"][lg] = entry
 
     if not out["leagues"] or not ok:
