@@ -644,3 +644,14 @@ body {
 .lg-table .z-top td   { background: rgba(212, 255, 63, 0.04); }
 .lg-table .z-po td    { background: rgba(255, 160, 77, 0.08); }
 .lg-table .z-rel td   { background: rgba(229, 72, 77, 0.09); }
+
+/* form-kolonnen i ligatabellen */
+.form-h { text-align: right; }
+.form-cell { text-align: right; white-space: nowrap; }
+.fdot {
+  display: inline-block; width: 9px; height: 9px; border-radius: 50%;
+  margin-left: 3px;
+}
+.fdot.fw { background: var(--volt-dim); }
+.fdot.fd { background: var(--line-hard); }
+.fdot.fl { background: var(--red); }

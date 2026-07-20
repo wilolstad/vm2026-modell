@@ -23,6 +23,8 @@ OUT = Path(__file__).resolve().parent.parent / "site" / "liga-elo.json"
 ESPN = "https://site.api.espn.com/apis/site/v2/sports/soccer/{lg}/scoreboard?dates={win}&limit=500"
 
 # ESPN-kode -> (visningsnavn, ClubElo-landskode, forrige sesongs vindu for mu)
+# Landskode "ALL" = match på tvers av alle land (Champions League);
+# None = ingen ClubElo-dekning (Saudi — egen Elo-replay).
 LEAGUES = {
     "nor.1": ("Eliteserien", "NOR", "20250301-20251215"),
     "eng.1": ("Premier League", "ENG", "20250801-20260601"),
@@ -31,6 +33,7 @@ LEAGUES = {
     "ita.1": ("Serie A", "ITA", "20250801-20260601"),
     "por.1": ("Liga Portugal", "POR", "20250801-20260601"),
     "ksa.1": ("Saudi Pro League", None, "20250801-20260601"),
+    "uefa.champions": ("Champions League", "ALL", "20250801-20260601"),
 }
 
 # Modellparametre (backtestet i backtest.py — se README-eksperimentloggen).
@@ -39,7 +42,8 @@ PARAMS = {
     "pow": 0.6, "rho": 0.0, "biv": 0.2,
     "adC": 80, "adG": 0.5,
     "hfa": {"nor.1": 45, "eng.1": 30, "esp.1": 65, "ger.1": 10,
-            "ita.1": 45, "por.1": 65, "ksa.1": 30},
+            "ita.1": 45, "por.1": 65, "ksa.1": 30,
+            "uefa.champions": 45},  # ikke backtestet enda — pooled-nivå
 }
 
 
@@ -50,7 +54,7 @@ def current_window(lg):
     if lg == "nor.1":
         return f"{y}0201-{y}1220"
     start = y if today.month >= 7 else y - 1
-    return f"{start}0715-{start + 1}0630"
+    return f"{start}0701-{start + 1}0630"
 
 # ESPN displayName -> ClubElo-navn der normalisering ikke strekker til
 ALIASES = {
@@ -331,7 +335,10 @@ def main():
             entry["mu"] = mu
             print(f"  mu = {mu} ({mu_n} kamper forrige sesong)")
 
-        rows = by_country.get(country, []) if country else None
+        if country == "ALL":  # Champions League: match på tvers av alle land
+            rows = [r for rs in by_country.values() for r in rs]
+        else:
+            rows = by_country.get(country, []) if country else None
         matched, missing = 0, []
         for display, meta in teams.items():
             if ratings is not None:
@@ -346,7 +353,8 @@ def main():
             entry["meta"][display] = meta
         print(f"  {matched}/{len(teams)} lag matchet" +
               (f" — MANGLER: {missing}" if missing else ""))
-        if teams and matched < len(teams) * 0.8:
+        # CL-feltet har småklubber ClubElo mangler — ikke la det velte bygget
+        if teams and matched < len(teams) * 0.8 and country != "ALL":
             ok = False
 
         entry["adWindow"] = window

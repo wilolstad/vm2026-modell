@@ -10,18 +10,21 @@ natt-kjøring før kampen vinner, og alt er fortsatt strengt pre-kamp.
 
 import json
 import math
+import random
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
 from liga_build import PARAMS, current_window, espn_events
-from backtest import probs
+from backtest import probs, base_lambdas
 
 SITE = Path(__file__).resolve().parent.parent / "site"
 ELO_FILE = SITE / "liga-elo.json"
 OUT = SITE / "ledger.json"
+SIMHIST = SITE / "simhist.json"
 
 K_REPLAY = 20
 MU_WEIGHT = 60
+SIM_RUNS = 2000
 
 
 def parse_events(evs):
@@ -98,6 +101,61 @@ def ad_factors(ad, hn, an):
     return fh, fa
 
 
+def sample_poisson(exp_neg_lam):
+    k, p = 0, random.random()
+    while p > exp_neg_lam:
+        k += 1
+        p *= random.random()
+    return k
+
+
+def season_sim(lg, matches, team_elo, mu, ad, p):
+    """P(seriemester) per lag — Monte Carlo over gjenstående serierunder.
+    Snapshottes daglig i simhist.json og driver «tittelsjanser over sesongen»-
+    grafen. CL hoppes over: tittelen avgjøres i sluttspill, ikke ligafasen."""
+    if lg == "uefa.champions":
+        return None
+    names = sorted({m["h"] for m in matches} | {m["a"] for m in matches})
+    if len(names) < 2:
+        return None
+    pts = {n: 0 for n in names}
+    gd = {n: 0 for n in names}
+    gf = {n: 0 for n in names}
+    remaining = []
+    biv = PARAMS["biv"]
+    for m in matches:
+        if m["state"] == "post" and m["hs"] is not None:
+            gd[m["h"]] += m["hs"] - m["as"]; gd[m["a"]] += m["as"] - m["hs"]
+            gf[m["h"]] += m["hs"]; gf[m["a"]] += m["as"]
+            if m["hs"] > m["as"]: pts[m["h"]] += 3
+            elif m["hs"] < m["as"]: pts[m["a"]] += 3
+            else: pts[m["h"]] += 1; pts[m["a"]] += 1
+        else:
+            fh, fa = ad_factors(ad, m["h"], m["a"])
+            lh, la = base_lambdas(team_elo(m["h"]), team_elo(m["a"]), mu, p)
+            lh = max(0.2, lh * fh); la = max(0.2, la * fa)
+            l3 = biv * min(lh, la)
+            remaining.append((m["h"], m["a"],
+                              math.exp(-(lh - l3)), math.exp(-(la - l3)), math.exp(-l3)))
+    if not remaining:
+        return None
+    wins = {n: 0 for n in names}
+    for _ in range(SIM_RUNS):
+        p2, g2, f2 = dict(pts), dict(gd), dict(gf)
+        for h, a, e1, e2, e3 in remaining:
+            x3 = sample_poisson(e3)
+            gh = sample_poisson(e1) + x3
+            ga = sample_poisson(e2) + x3
+            g2[h] += gh - ga; g2[a] += ga - gh
+            f2[h] += gh; f2[a] += ga
+            if gh > ga: p2[h] += 3
+            elif gh < ga: p2[a] += 3
+            else: p2[h] += 1; p2[a] += 1
+        best = max(names, key=lambda n: (p2[n], g2[n], f2[n], random.random()))
+        wins[best] += 1
+    return {n: round(w / SIM_RUNS, 4) for n, w in wins.items() if w}
+
+
 def main():
     elo_data = json.loads(ELO_FILE.read_text())
     ledger = {"leagues": {}}
@@ -107,6 +165,13 @@ def main():
         except (OSError, json.JSONDecodeError):
             pass
     ledger["updated"] = datetime.now(timezone.utc).isoformat(timespec="seconds")
+
+    simhist = {"leagues": {}}
+    if SIMHIST.exists():
+        try:
+            simhist = json.loads(SIMHIST.read_text())
+        except (OSError, json.JSONDecodeError):
+            pass
 
     for lg, entry in elo_data.get("leagues", {}).items():
         L = ledger["leagues"].setdefault(
@@ -120,9 +185,20 @@ def main():
         meta = entry.get("meta") or {}
         short = lambda n: (meta.get(n) or {}).get("short", n)
 
+        # dagens tittelsjanser -> historikk (idempotent: erstatter dagens rad)
+        w = season_sim(lg, matches, team_elo, mu, ad, p)
+        if w:
+            hist = simhist["leagues"].setdefault(lg, [])
+            today = date.today().isoformat()
+            simhist["leagues"][lg] = [r for r in hist if r["d"] != today] + [{"d": today, "w": w}]
+
+        rated = entry.get("teams") or {}
         n_new = n_res = 0
         for m in matches:
             if m["state"] == "pre":
+                # begge lag uten rating (CL-kvalik o.l.) = ren gjetning — telles ikke
+                if m["h"] not in rated and m["a"] not in rated:
+                    continue
                 fh, fa = ad_factors(ad, m["h"], m["a"])
                 pH, pD, pA, _ = probs(team_elo(m["h"]), team_elo(m["a"]), mu, p, fh, fa)
                 L["pending"][m["id"]] = [m["date"], round(pH, 4), round(pD, 4), round(pA, 4)]
@@ -149,7 +225,8 @@ def main():
               f"(totalt {agg['n']} målt, {agg['hits']} treff)")
 
     OUT.write_text(json.dumps(ledger, ensure_ascii=False))
-    print(f"Skrev {OUT} ({OUT.stat().st_size} bytes)")
+    SIMHIST.write_text(json.dumps(simhist, ensure_ascii=False))
+    print(f"Skrev {OUT} ({OUT.stat().st_size} bytes) og {SIMHIST} ({SIMHIST.stat().st_size} bytes)")
 
 
 if __name__ == "__main__":

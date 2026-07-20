@@ -65,7 +65,16 @@ tunet på 85 kamper — re-valideres mot resten av sluttspillet.
 ## Liga-prediktoren (liga.html)
 
 Samme motor for klubbfotball: Eliteserien, Premier League, LaLiga, Bundesliga,
-Serie A, Liga Portugal og Saudi Pro League.
+Serie A, Liga Portugal, Saudi Pro League og Champions League (ligafasen —
+aktiveres automatisk når ESPN publiserer terminlisten; sluttspillmodell kommer).
+
+Utover kampprediksjoner: tabell med sonefarger og formkolonne, kampforløps-graf
+(vinnersannsynlighet minutt for minutt) i kampmodalen, «Angrep/Forsvar vs Elo»
+i Elo-rangeringen (rå over-/underprestasjon fra att/def-tilstanden), og
+«tittelsjanser over sesongen» — `ledger.py` snapshotter simulerte tittelsjanser
+nightly til `site/simhist.json`, og grafen i Sesongsim-fanen bygger seg selv
+utover sesongen (kan ikke backfylles ærlig, derfor startet innsamlingen
+20. juli 2026).
 
 - **Ratinger:** [ClubElo](http://clubelo.com), hentet nightly av
   `scripts/liga_build.py` (GitHub Actions kl. 04:30 UTC) → `site/liga-elo.json`.

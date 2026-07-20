@@ -18,6 +18,7 @@ const LEAGUES = {
   "ita.1": { name: "Serie A",          flagg: "🇮🇹", relDirect: 3, playoff: false, muFb: 2.6, hfa: 45 },
   "por.1": { name: "Liga Portugal",    flagg: "🇵🇹", relDirect: 2, playoff: true,  muFb: 2.7, hfa: 65 },
   "ksa.1": { name: "Saudi Pro League", flagg: "🇸🇦", relDirect: 3, playoff: false, muFb: 3.0, hfa: 30 },
+  "uefa.champions": { name: "Champions League", flagg: "🏆", relDirect: 12, playoff: false, muFb: 3.4, hfa: 45, ucl: true },
 };
 
 const SIM_RUNS = 10000;
@@ -58,7 +59,7 @@ function seasonWindow(lg) {
   const y = now.getFullYear();
   if (lg === "nor.1") return `${y}0201-${y}1220`;
   const start = now.getMonth() >= 6 ? y : y - 1;
-  return `${start}0715-${start + 1}0630`;
+  return `${start}0701-${start + 1}0630`;
 }
 
 /* ---------- state ---------- */
@@ -288,12 +289,86 @@ async function fetchSummary(id) {
     const reds = (s.keyEvents || [])
       .filter((k) => /red card/i.test(k.type?.text || ""))
       .map((k) => ({ clock: k.clock?.displayValue || "", text: k.text || "" }));
+
+    // tidfestede mål for kampforløps-grafen: ligaformatet oppgir scorerens lag
+    // i parentes — «Tripic (Viking FK) Goal at 9'». Selvmål telles motsatt.
+    const wpGoals = [];
+    const mm = S.matches.find((x) => x.id === id);
+    if (mm) {
+      for (const k of s.keyEvents || []) {
+        if (!isGoal(k)) continue;
+        const tm = (k.text || "").match(/\(([^)]+)\)/);
+        const cm = (k.clock?.displayValue || "").match(/^(\d+)'/);
+        if (!tm || !cm || +cm[1] > 90) continue;
+        const who = tm[1].trim();
+        let side = null;
+        for (const [sd, t] of [["home", mm.home], ["away", mm.away]]) {
+          if (who === t.name || who === t.short || t.name.includes(who) || who.includes(t.short)) side = sd;
+        }
+        if (!side) continue;
+        if (/own goal/i.test(k.type?.text || "")) side = side === "home" ? "away" : "home";
+        wpGoals.push({ min: +cm[1], side });
+      }
+    }
     const h2h = (s.headToHeadGames?.[0]?.events || []).slice(0, 5).map((ev) => ({
       date: ev.gameDate, homeId: ev.homeTeamId, awayId: ev.awayTeamId,
       hs: ev.homeTeamScore, as: ev.awayTeamScore, league: ev.leagueName,
     }));
-    S.summaries[id] = { stat, goals, reds, h2h, t: Date.now() };
+    S.summaries[id] = { stat, goals, reds, wpGoals, h2h, t: Date.now() };
   } catch { /* nice-to-have */ }
+}
+
+/* Kampforløp: vinnersannsynlighet minutt for minutt, rekonstruert fra
+   lambdaene og de tidfestede målene. 538-stil stablet område. */
+function wpChartHTML(m) {
+  if (m.state === "pre") return "";
+  const sum = S.summaries[m.id];
+  if (!sum || !sum.wpGoals) return "";
+  const L0 = lambdas(teamElo(m.home.name) + HFA(), teamElo(m.away.name));
+  const F = adFactors(m.home.name, m.away.name);
+  const lh0 = Math.max(0.2, L0.lh * F.fh), la0 = Math.max(0.2, L0.la * F.fa);
+
+  const endMin = m.state === "in" ? Math.max(2, Math.min(m.clockMin ?? 0, 90)) : 90;
+  const pts = [];
+  for (let t = 0; t <= endMin; t += 2) {
+    const h = sum.wpGoals.filter((g) => g.side === "home" && g.min <= t).length;
+    const a = sum.wpGoals.filter((g) => g.side === "away" && g.min <= t).length;
+    const rem = remainingGoalShare(t);
+    const g = grid(lh0 * rem, la0 * rem, h, a);
+    pts.push({ t, pH: g.pH, pD: g.pD });
+  }
+
+  const W = 460, H = 170, PL = 6, PR = 6, PT = 8, PB = 22;
+  const x = (t) => PL + (t / 90) * (W - PL - PR);
+  const y = (v) => PT + (1 - v) * (H - PT - PB);
+  const up = pts.map((p) => `${x(p.t).toFixed(1)},${y(p.pH).toFixed(1)}`);
+  const mid = pts.map((p) => `${x(p.t).toFixed(1)},${y(p.pH + p.pD).toFixed(1)}`);
+  const x0 = x(0).toFixed(1), xE = x(pts[pts.length - 1].t).toFixed(1);
+  const areaH = `M ${x0},${y(0)} L ${up.join(" L ")} L ${xE},${y(0)} Z`;
+  const areaD = `M ${up.join(" L ")} L ${[...mid].reverse().join(" L ")} Z`;
+  const areaA = `M ${mid.join(" L ")} L ${xE},${y(1)} L ${x0},${y(1)} Z`;
+
+  const goalMarks = sum.wpGoals.filter((g) => g.min <= endMin).map((g) => `
+    <line x1="${x(g.min)}" y1="${y(1)}" x2="${x(g.min)}" y2="${y(0)}" stroke="rgba(240,243,233,.35)" stroke-dasharray="3 3"/>
+    <text x="${x(g.min)}" y="${g.side === "home" ? y(0.06) : y(0.94) + 8}" font-size="11" text-anchor="middle">⚽</text>`).join("");
+
+  const ticks = [0, 45, 90].map((t) => `
+    <text x="${x(t)}" y="${H - 6}" fill="#838c78" font-size="10" text-anchor="middle">${t}'</text>`).join("");
+
+  return `
+    <div class="m-sec">Kampforløpet${m.state === "in" ? " (live)" : ""}</div>
+    <svg viewBox="0 0 ${W} ${H}" style="width:100%" role="img" aria-label="Vinnersannsynlighet gjennom kampen">
+      <path d="${areaH}" fill="rgba(212,255,63,.45)"/>
+      <path d="${areaD}" fill="rgba(61,70,54,.55)"/>
+      <path d="${areaA}" fill="rgba(255,138,61,.40)"/>
+      ${goalMarks}${ticks}
+    </svg>
+    <div class="wp-legend">
+      <span><i style="background:rgba(212,255,63,.7)"></i>${esc(m.home.short)}</span>
+      <span><i style="background:rgba(61,70,54,.9)"></i>Uavgjort</span>
+      <span><i style="background:rgba(255,138,61,.7)"></i>${esc(m.away.short)}</span>
+    </div>
+    <p class="mvm-note">Rekonstruert med dagens ratinger — sannsynlighetene her kan avvike litt fra det som ble vist før kampen.</p>`;
 }
 
 /* Elo: snapshot fra liga-elo.json + klient-replay av kamper spilt etter.
@@ -404,6 +479,7 @@ function samplePoisson(lam) {
 
 async function simSeason(runs) {
   const mySeq = S.seq;
+  if (LEAGUES[S.lg].ucl) return null; // ligafase-sim gir ikke tittelsjanser
   const base = leagueTable();
   if (base.length < 2) return null;
   const names = base.map((r) => r.team.name);
@@ -664,20 +740,38 @@ function matchCard(m) {
   </article>`;
 }
 
+function formDots(name) {
+  const played = S.matches
+    .filter((m) => m.state === "post" && m.home.score != null &&
+      (m.home.name === name || m.away.name === name))
+    .sort((a, b) => a.date - b.date)
+    .slice(-5);
+  return played.map((m) => {
+    const me = m.home.name === name ? m.home : m.away;
+    const opp = m.home.name === name ? m.away : m.home;
+    const cls = me.score > opp.score ? "fw" : me.score < opp.score ? "fl" : "fd";
+    return `<i class="fdot ${cls}" title="${esc(m.home.short)} ${m.home.score}–${m.away.score} ${esc(m.away.short)}"></i>`;
+  }).join("");
+}
+
 function tableHTML() {
   const rows = leagueTable();
   if (!rows.length) return `<div class="empty">Ingen tabell ennå.</div>`;
   const cfg = LEAGUES[S.lg];
   const n = rows.length;
   const zone = (i) => {
+    if (cfg.ucl) return i < 8 ? "z-top" : i < 24 ? "z-po" : "z-rel";
     if (i === 0) return "z-title";
     if (i < 4) return "z-top";
     if (i >= n - cfg.relDirect) return "z-rel";
     if (cfg.playoff && i === n - cfg.relDirect - 1) return "z-po";
     return "";
   };
+  const note = cfg.ucl
+    ? "Grønn = topp 8 (direkte til åttedelsfinale), gul = plass 9–24 (playoff), rød = ute. Tabellen regnes fra ESPNs resultater."
+    : "Grønn = serieleder, blek grønn = topp 4, gul = playoff/kvalik, rød = direkte nedrykk. Tabellen regnes fra ESPNs resultater.";
   return `<div class="table-scroll"><table class="power-table lg-table">
-    <thead><tr><th></th><th>Lag</th><th class="num-h">K</th><th class="num-h">V</th><th class="num-h">U</th><th class="num-h">T</th><th class="num-h">+/-</th><th class="num-h">P</th></tr></thead>
+    <thead><tr><th></th><th>Lag</th><th class="num-h">K</th><th class="num-h">V</th><th class="num-h">U</th><th class="num-h">T</th><th class="num-h">+/-</th><th class="num-h">P</th><th class="form-h">Form</th></tr></thead>
     <tbody>${rows.map((r, i) => `
       <tr class="${zone(i)}">
         <td class="rank">${i + 1}</td>
@@ -688,12 +782,69 @@ function tableHTML() {
         <td class="num">${r.l}</td>
         <td class="num">${r.gf - r.ga > 0 ? "+" : ""}${r.gf - r.ga}</td>
         <td class="num win">${r.pts}</td>
+        <td class="form-cell">${formDots(r.team.name)}</td>
       </tr>`).join("")}
     </tbody></table></div>
-  <p class="mvm-note">Grønn = serieleder, blek grønn = topp 4, gul = playoff/kvalik, rød = direkte nedrykk. Tabellen regnes fra ESPNs resultater.</p>`;
+  <p class="mvm-note">${note}</p>`;
+}
+
+const HIST_COLORS = ["#d4ff3f", "#ff8a3d", "#4a8fe0", "#e5484d", "#b16fd8", "#2ecc71", "#f5c542", "#8a93a8"];
+
+function shortName(display) {
+  for (const m of S.matches) {
+    if (m.home.name === display) return m.home.short;
+    if (m.away.name === display) return m.away.short;
+  }
+  return display;
+}
+
+/* Tittelsjanser over sesongen — nattlige snapshots fra simhist.json */
+function simHistChartHTML() {
+  const snaps = S.simhist?.leagues?.[S.lg];
+  if (!snaps || !snaps.length) return "";
+  if (snaps.length < 3) {
+    return `<div class="br-sec">Tittelsjanser over sesongen</div>
+      <p class="mvm-note">Grafen bygger seg selv: sjansene snapshottes hver natt (${snaps.length} ${snaps.length === 1 ? "måling" : "målinger"} til nå — kom tilbake om noen dager).</p>`;
+  }
+  const teams = new Set();
+  for (const s of snaps) for (const [t, w] of Object.entries(s.w)) if (w >= 0.05) teams.add(t);
+  const last = snaps[snaps.length - 1].w;
+  const list = [...teams].sort((a, b) => (last[b] || 0) - (last[a] || 0)).slice(0, 8);
+
+  const W = 720, H = 300, PL = 40, PR = 130, PT = 14, PB = 34;
+  const maxW = Math.max(0.15, ...snaps.flatMap((s) => list.map((t) => s.w[t] || 0))) * 1.12;
+  const x = (i) => PL + (i / (snaps.length - 1)) * (W - PL - PR);
+  const y = (v) => H - PB - (v / maxW) * (H - PT - PB);
+
+  const lines = list.map((t, ti) => {
+    const c = HIST_COLORS[ti % HIST_COLORS.length];
+    const pts = snaps.map((s, i) => `${x(i).toFixed(1)},${y(s.w[t] || 0).toFixed(1)}`).join(" ");
+    const lw = last[t] || 0;
+    return `<polyline points="${pts}" fill="none" stroke="${c}" stroke-width="2" opacity="0.9"/>
+      <circle cx="${x(snaps.length - 1)}" cy="${y(lw)}" r="3" fill="${c}"/>
+      <text x="${x(snaps.length - 1) + 8}" y="${y(lw) + 4}" fill="${c}" font-size="11" font-weight="600">${esc(shortName(t))} ${Math.round(lw * 100)} %</text>`;
+  }).join("");
+
+  const yticks = [0, 0.2, 0.4, 0.6, 0.8, 1].filter((v) => v <= maxW).map((v) => `
+    <line x1="${PL}" y1="${y(v)}" x2="${W - PR}" y2="${y(v)}" stroke="#2b3226" stroke-dasharray="${v ? "2 4" : "0"}"/>
+    <text x="${PL - 8}" y="${y(v) + 4}" fill="#838c78" font-size="10" text-anchor="end">${v * 100}</text>`).join("");
+
+  const step = Math.max(1, Math.round(snaps.length / 6));
+  const xticks = snaps.map((s, i) => (i % step === 0 || i === snaps.length - 1) ? `
+    <text x="${x(i)}" y="${H - PB + 18}" fill="#838c78" font-size="10" text-anchor="middle">${new Date(s.d).toLocaleDateString("nb-NO", { day: "numeric", month: "numeric" })}</text>` : "").join("");
+
+  return `
+    <div class="br-sec">Tittelsjanser over sesongen</div>
+    <p class="sim-intro">Hvert punkt er et nattlig snapshot av modellens simulerte tittelsjanser — kurven viser hvordan sesongen faktisk har svingt.</p>
+    <div class="table-scroll"><svg viewBox="0 0 ${W} ${H}" style="min-width:640px;width:100%" role="img" aria-label="Tittelsjanser over sesongen">
+      ${yticks}${xticks}${lines}
+    </svg></div>`;
 }
 
 function simTabHTML() {
+  if (LEAGUES[S.lg].ucl) {
+    return `<div class="empty">Ligafase-tabellen finner du under «Tabell». Sesongsimulering for Champions League krever sluttspillmodell — den kommer når ligafasen er i gang.</div>`;
+  }
   if (!S.sim || !S.sim.length) {
     return `<div class="empty">Simulerer sesongen … kommer om et øyeblikk.</div>`;
   }
@@ -701,6 +852,8 @@ function simTabHTML() {
   const fp = (p) => (p >= 0.995 ? "100 %" : p < 0.001 ? "–" : p < 0.10 ? (p * 100).toFixed(1).replace(".", ",") + " %" : Math.round(p * 100) + " %");
   const maxW = S.sim[0].w || 1;
   return `
+    ${simHistChartHTML()}
+    <div class="br-sec" style="margin-top:26px">Sesongen simulert nå</div>
     <p class="sim-intro">Alle gjenstående kamper simulert ${SIM_RUNS.toLocaleString("nb-NO")} ganger oppå dagens tabell, med dagens Elo-ratinger. Re-simuleres når resultater endrer seg.</p>
     <div class="table-scroll"><table class="power-table sim-table">
     <thead><tr><th></th><th>Lag</th><th class="num-h">Seriemester</th><th class="num-h">Topp 4</th>${cfg.playoff ? `<th class="num-h">Playoff</th>` : ""}<th class="num-h">Nedrykk</th><th class="num-h">Snittplass</th><th class="sim-barcol"></th></tr></thead>
@@ -720,25 +873,33 @@ function simTabHTML() {
 }
 
 function powerHTML() {
+  const fmtPct = (v) => (v == null ? "–" : `<span class="${v >= 0 ? "up" : "down"}">${v >= 0 ? "+" : ""}${Math.round(v * 100)} %</span>`);
   const rows = Object.keys(S.elo)
     .map((n) => {
       const t = S.matches.map((m) => [m.home, m.away]).flat().find((x) => x.name === n);
-      return { n, short: t?.short || n, logo: t?.logo || null, elo: S.elo[n], d: S.elo[n] - (S.eloSnap[n] ?? S.elo[n]) };
+      const s = S.ad?.[n];
+      // rå over-/underprestasjon mot Elo-forventet, vises først når nok data
+      const att = s && s[1] >= 8 ? s[0] / s[1] - 1 : null;
+      const def = s && s[3] >= 8 ? 1 - s[2] / s[3] : null;
+      return { n, short: t?.short || n, logo: t?.logo || null, elo: S.elo[n],
+               d: S.elo[n] - (S.eloSnap[n] ?? S.elo[n]), att, def };
     })
     .sort((a, b) => b.elo - a.elo);
   if (!rows.length) return `<div class="empty">Ingen ratinger for denne ligaen ennå.</div>`;
   const src = S.lg === "ksa.1" ? "egen Elo-replay av alle resultater siden 2023 (ESPN)" : "ClubElo, oppdatert nightly";
+  const anyAd = rows.some((r) => r.att != null);
   return `<div class="table-scroll"><table class="power-table">
-    <thead><tr><th></th><th>Lag</th><th class="num-h">Elo nå</th><th class="num-h">Siden snapshot</th></tr></thead>
+    <thead><tr><th></th><th>Lag</th><th class="num-h">Elo nå</th><th class="num-h">Siden snapshot</th>${anyAd ? `<th class="num-h">Angrep vs Elo</th><th class="num-h">Forsvar vs Elo</th>` : ""}</tr></thead>
     <tbody>${rows.map((r, i) => `
       <tr>
         <td class="rank">${i + 1}</td>
         <td><span class="tcell">${r.logo ? `<img src="${r.logo}" alt="">` : ""}${esc(r.short)}</span></td>
         <td class="num">${Math.round(r.elo)}</td>
         <td class="num ${r.d >= 0 ? "up" : "down"}">${r.d >= 0 ? "+" : ""}${Math.round(r.d)}</td>
+        ${anyAd ? `<td class="num">${fmtPct(r.att)}</td><td class="num">${fmtPct(r.def)}</td>` : ""}
       </tr>`).join("")}
     </tbody></table></div>
-  <p class="mvm-note">Kilde: ${src}. «Siden snapshot» = klient-replay av kamper spilt etter siste natt-bygg.</p>`;
+  <p class="mvm-note">Kilde: ${src}. «Siden snapshot» = klient-replay av kamper spilt etter siste natt-bygg.${anyAd ? " «Angrep vs Elo» = scorer så mye mer/mindre enn Elo-differansene tilsier; «Forsvar vs Elo» = slipper inn så mye mindre/mer. Modellen bruker en kraftig dempet versjon av disse tallene." : ""}</p>`;
 }
 
 function renderContent() {
@@ -900,6 +1061,7 @@ function openModal(m) {
     </div>
     <div class="m-when">${m.state === "pre" ? "" : cap(fmtDayKey(m.date)) + " · " + fmtTime(m.date)}</div>
     ${probsHtml}
+    ${wpChartHTML(m)}
     ${marketHtml}
     ${marketsHtml}
     ${statsHtml}
@@ -936,6 +1098,12 @@ async function loadEloData() {
       const res = await fetchT("ledger.json");
       if (res.ok) S.ledger = await res.json();
     } catch { /* regnskapet er nice-to-have */ }
+  }
+  if (!S.simhist) {
+    try {
+      const res = await fetchT("simhist.json");
+      if (res.ok) S.simhist = await res.json();
+    } catch { /* grafen er nice-to-have */ }
   }
 }
 
