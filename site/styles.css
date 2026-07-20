@@ -1,21 +1,24 @@
-/* VM26 — mørk scoreboard-identitet, men lesbarhet først.
-   Barlow for alt innhold, Barlow Condensed kun til store overskrifter,
+/* «Signatur» — marineblå studio-identitet, lesbarhet først.
+   Elektrisk cyan = modellen, gult = marked/odds. Flate datapaneler;
+   skråkutt og glød brukes kun som signatur (stat-chips, LIVE-merker).
+   Barlow for innhold, Barlow Condensed til store overskrifter,
    IBM Plex Mono til tall/ticker. */
 
 :root {
-  --paper: #0d100c;
-  --paper-2: #12160f;
-  --panel: #161b13;
-  --panel-2: #1e241a;
-  --line: #2b3226;
-  --line-hard: #3d4636;
-  --ink: #f0f3e9;
-  --ink-dim: #b4bcaa;
-  --ink-faint: #838c78;
-  --volt: #d4ff3f;
-  --volt-dim: #a8cc32;
+  --paper: #0a1430;
+  --paper-2: #0c1737;
+  --panel: #101c3d;
+  --panel-2: #16234a;
+  --line: #1c2c5c;
+  --line-hard: #24397a;
+  --ink: #e9eefb;
+  --ink-dim: #a9b7dc;
+  --ink-faint: #8095c0;
+  --volt: #3fd9ff;
+  --volt-dim: #38b8dd;
   --live: #ff453a;
-  --away: #ffa04d;
+  --away: #8ea3cf;
+  --market: #ffd23f;
   --red: #e5484d;
   --disp: "Barlow Condensed", "Arial Narrow", sans-serif;
   --sans: "Barlow", -apple-system, "Segoe UI", sans-serif;
@@ -35,13 +38,13 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-::selection { background: var(--volt); color: #0d100c; }
+::selection { background: var(--volt); color: #0a1430; }
 
 /* ---------- topbar + ticker ---------- */
 
 .topbar {
   position: sticky; top: 0; z-index: 50;
-  background: rgba(13, 16, 12, 0.93);
+  background: rgba(7, 13, 32, 0.92);
   backdrop-filter: blur(10px);
   border-bottom: 1px solid var(--line);
 }
@@ -75,7 +78,7 @@ body {
 }
 
 .ticker {
-  background: #0a0c08; border-bottom: 1px solid var(--line);
+  background: #070d20; border-bottom: 1px solid var(--line);
   overflow: hidden; white-space: nowrap;
 }
 .ticker-track {
@@ -95,7 +98,14 @@ body {
 
 .wrap { max-width: 1160px; margin: 0 auto; padding: 38px 20px 60px; }
 
-.hero { margin-bottom: 34px; }
+.hero {
+  margin-bottom: 34px; position: relative;
+}
+.hero::before {
+  content: ""; position: absolute; inset: -80px -40px 0;
+  background: radial-gradient(60% 90% at 35% 0%, rgba(63, 217, 255, 0.09), transparent 70%);
+  pointer-events: none;
+}
 .masthead {
   font-family: var(--disp); font-weight: 800; text-transform: uppercase;
   font-size: clamp(2.6rem, 7vw, 4.4rem); line-height: 0.92;
@@ -110,10 +120,15 @@ body {
 
 .stats {
   display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-  gap: 0; margin-top: 30px; border-top: 1px solid var(--line-hard);
+  gap: 10px; margin-top: 30px;
 }
-.stat { padding: 14px 18px 6px 0; border-right: 1px solid var(--line); }
-.stat:last-child { border-right: none; }
+/* skråkuttet chip — del av Signatur-identiteten, brukes kun her og på LIVE */
+.stat {
+  padding: 12px 18px 10px;
+  background: linear-gradient(180deg, rgba(63, 217, 255, 0.09), rgba(63, 217, 255, 0.03));
+  border: 1px solid var(--line-hard);
+  clip-path: polygon(8px 0, 100% 0, calc(100% - 8px) 100%, 0 100%);
+}
 .stat .v {
   font-family: var(--disp); font-size: 2.3rem; font-weight: 700; line-height: 1;
 }
@@ -143,7 +158,7 @@ body {
   transition: all 0.12s ease;
 }
 .chip:hover { color: var(--ink-dim); border-color: var(--line-hard); }
-.chip.active { color: #0d100c; background: var(--volt); border-color: var(--volt); font-weight: 600; }
+.chip.active { color: #0a1430; background: var(--volt); border-color: var(--volt); font-weight: 600; }
 
 /* ---------- match list ---------- */
 
@@ -181,12 +196,15 @@ body {
 .match-meta .round { color: var(--ink-dim); font-weight: 600; }
 .match-meta time, .match-meta .ko { font-family: var(--mono); }
 .badge-live {
-  color: var(--live); display: inline-flex; align-items: center; gap: 7px;
-  font-weight: 700; font-family: var(--mono); font-size: 0.74rem;
+  color: #fff; background: linear-gradient(180deg, var(--live), #d63328);
+  display: inline-flex; align-items: center; gap: 7px;
+  font-weight: 700; font-family: var(--mono); font-size: 0.72rem;
+  padding: 2px 10px;
+  clip-path: polygon(5px 0, 100% 0, calc(100% - 5px) 100%, 0 100%);
 }
 .badge-live::before {
-  content: ""; width: 7px; height: 7px; border-radius: 50%;
-  background: var(--live); animation: pulse 1.3s ease-in-out infinite;
+  content: ""; width: 6px; height: 6px; border-radius: 50%;
+  background: #fff; animation: pulse 1.3s ease-in-out infinite;
 }
 .badge-ft { color: var(--ink-faint); }
 
@@ -269,7 +287,7 @@ body {
 .sim-table .sim-barcol { width: 120px; }
 .sim-bar { height: 8px; border-radius: 4px; background: var(--panel-2); overflow: hidden; }
 .sim-bar i { display: block; height: 100%; background: var(--volt-dim); border-radius: 4px; }
-.sim-norge td { background: rgba(212, 255, 63, 0.04); }
+.sim-norge td { background: rgba(63, 217, 255, 0.05); }
 .sim-norge .tcell::after {
   content: "🇳🇴"; font-size: 0.8rem;
 }
@@ -358,7 +376,7 @@ body {
 .brow.tbd .bn { color: var(--ink-dim); font-weight: 500; }
 
 .champ {
-  background: linear-gradient(160deg, rgba(212, 255, 63, 0.08), transparent 60%), var(--panel);
+  background: linear-gradient(160deg, rgba(63, 217, 255, 0.08), transparent 60%), var(--panel);
   border: 1px solid var(--volt-dim); border-radius: 12px;
   padding: 18px 14px; text-align: center;
 }
@@ -370,7 +388,7 @@ body {
 /* ---------- bets ---------- */
 
 .bet-hero {
-  background: linear-gradient(150deg, rgba(212, 255, 63, 0.09), transparent 55%), var(--panel);
+  background: linear-gradient(150deg, rgba(63, 217, 255, 0.09), transparent 55%), var(--panel);
   border: 1px solid var(--volt-dim); border-radius: 14px;
   padding: 20px 24px; margin-bottom: 26px; cursor: pointer;
   transition: transform 0.12s ease;
@@ -431,7 +449,7 @@ body {
 
 .value-badge {
   display: inline-block; font-size: 0.66rem; font-weight: 700;
-  color: var(--volt); border: 1px solid var(--volt-dim); border-radius: 999px;
+  color: var(--market); border: 1px solid rgba(255, 210, 63, 0.5); border-radius: 999px;
   padding: 0 8px; margin-right: 6px; text-transform: uppercase; letter-spacing: 0.06em;
   vertical-align: 1px;
 }
@@ -501,7 +519,7 @@ body {
   appearance: none; border: 1px solid var(--line-hard); background: none; color: var(--ink-dim);
   width: 30px; height: 30px; border-radius: 8px; cursor: pointer; font-size: 0.9rem; line-height: 1;
 }
-.m-close:hover { color: #0d100c; background: var(--volt); border-color: var(--volt); }
+.m-close:hover { color: #0a1430; background: var(--volt); border-color: var(--volt); }
 
 .m-teams { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 8px; }
 .m-team { flex: 1; text-align: center; }
@@ -640,9 +658,9 @@ body {
 
 .power-table .num-h { text-align: right; }
 
-.lg-table .z-title td { background: rgba(212, 255, 63, 0.10); }
-.lg-table .z-top td   { background: rgba(212, 255, 63, 0.04); }
-.lg-table .z-po td    { background: rgba(255, 160, 77, 0.08); }
+.lg-table .z-title td { background: rgba(63, 217, 255, 0.11); }
+.lg-table .z-top td   { background: rgba(63, 217, 255, 0.05); }
+.lg-table .z-po td    { background: rgba(255, 210, 63, 0.09); }
 .lg-table .z-rel td   { background: rgba(229, 72, 77, 0.09); }
 
 /* form-kolonnen i ligatabellen */

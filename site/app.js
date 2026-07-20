@@ -1006,7 +1006,7 @@ async function buildHistory() {
   return S.history;
 }
 
-const HIST_COLORS = ["#d4ff3f", "#ff8a3d", "#4a8fe0", "#e5484d", "#b16fd8", "#2ecc71", "#f5c542", "#8a93a8"];
+const HIST_COLORS = ["#3fd9ff", "#ffd23f", "#8fb8ff", "#e5484d", "#b16fd8", "#2ecc71", "#f5c542", "#8a93a8"];
 
 function historyChartHTML() {
   const h = S.history;
@@ -1036,12 +1036,12 @@ function historyChartHTML() {
   }).join("");
 
   const yticks = [0, 0.1, 0.2, 0.3, 0.4, 0.5].filter((v) => v <= maxW).map((v) => `
-    <line x1="${PL}" y1="${y(v)}" x2="${W - PR}" y2="${y(v)}" stroke="#2b3226" stroke-dasharray="${v ? "2 4" : "0"}"/>
-    <text x="${PL - 8}" y="${y(v) + 4}" fill="#838c78" font-size="10" text-anchor="end">${v * 100}</text>`).join("");
+    <line x1="${PL}" y1="${y(v)}" x2="${W - PR}" y2="${y(v)}" stroke="#1c2c5c" stroke-dasharray="${v ? "2 4" : "0"}"/>
+    <text x="${PL - 8}" y="${y(v) + 4}" fill="#8095c0" font-size="10" text-anchor="end">${v * 100}</text>`).join("");
 
   const step = Math.max(1, Math.round(snaps.length / 6));
   const xticks = snaps.map((s, i) => (i % step === 0 || i === snaps.length - 1) ? `
-    <text x="${x(i)}" y="${H - PB + 18}" fill="#838c78" font-size="10" text-anchor="middle">${i === 0 ? "start" : s.date.toLocaleDateString("nb-NO", { day: "numeric", month: "numeric" })}</text>` : "").join("");
+    <text x="${x(i)}" y="${H - PB + 18}" fill="#8095c0" font-size="10" text-anchor="middle">${i === 0 ? "start" : s.date.toLocaleDateString("nb-NO", { day: "numeric", month: "numeric" })}</text>` : "").join("");
 
   return `
     <div class="br-sec">Tittelsjanser gjennom sluttspillet</div>
@@ -1583,21 +1583,21 @@ function renderCalib() {
   const dots = buckets.filter((b) => b.n >= 4).map((b) => {
     const px = b.sp / b.n, py = b.sh / b.n;
     const r = 4 + Math.min(8, Math.sqrt(b.n));
-    return `<circle cx="${x(px).toFixed(1)}" cy="${y(py).toFixed(1)}" r="${r.toFixed(1)}" fill="rgba(212,255,63,.75)"><title>${b.n} utfall · predikert ${Math.round(px * 100)} % · faktisk ${Math.round(py * 100)} %</title></circle>`;
+    return `<circle cx="${x(px).toFixed(1)}" cy="${y(py).toFixed(1)}" r="${r.toFixed(1)}" fill="rgba(63,217,255,.75)"><title>${b.n} utfall · predikert ${Math.round(px * 100)} % · faktisk ${Math.round(py * 100)} %</title></circle>`;
   }).join("");
   const ticks = [0, 0.25, 0.5, 0.75, 1].map((v) => `
-    <text x="${x(v)}" y="${H - PAD + 20}" fill="#838c78" font-size="11" text-anchor="middle">${v * 100}</text>
-    <text x="${PAD - 10}" y="${y(v) + 4}" fill="#838c78" font-size="11" text-anchor="end">${v * 100}</text>`).join("");
+    <text x="${x(v)}" y="${H - PAD + 20}" fill="#8095c0" font-size="11" text-anchor="middle">${v * 100}</text>
+    <text x="${PAD - 10}" y="${y(v) + 4}" fill="#8095c0" font-size="11" text-anchor="end">${v * 100}</text>`).join("");
   el.innerHTML = `
     <h3 style="margin-top:26px">Kalibrering</h3>
     <p style="font-size:.85rem;color:var(--ink-dim);max-width:640px">Hvert punkt er en gruppe prediksjoner (${pts.length} utfall totalt fra ${pts.length / 3} kamper). Ligger punktene på diagonalen, betyr «70 %» fra modellen faktisk 70 %. Størrelse = antall utfall.</p>
     <svg viewBox="0 0 ${W} ${H}" style="max-width:560px;width:100%;margin-top:10px" role="img" aria-label="Kalibreringsplot">
-      <line x1="${x(0)}" y1="${y(0)}" x2="${x(1)}" y2="${y(1)}" stroke="#3d4636" stroke-dasharray="4 4"/>
-      <line x1="${PAD}" y1="${H - PAD}" x2="${W - 14}" y2="${H - PAD}" stroke="#2b3226"/>
-      <line x1="${PAD}" y1="${H - PAD}" x2="${PAD}" y2="14" stroke="#2b3226"/>
+      <line x1="${x(0)}" y1="${y(0)}" x2="${x(1)}" y2="${y(1)}" stroke="#24397a" stroke-dasharray="4 4"/>
+      <line x1="${PAD}" y1="${H - PAD}" x2="${W - 14}" y2="${H - PAD}" stroke="#1c2c5c"/>
+      <line x1="${PAD}" y1="${H - PAD}" x2="${PAD}" y2="14" stroke="#1c2c5c"/>
       ${ticks}
-      <text x="${(W + PAD) / 2}" y="${H - 6}" fill="#838c78" font-size="11" text-anchor="middle">Predikert sannsynlighet (%)</text>
-      <text x="12" y="${(H - PAD) / 2}" fill="#838c78" font-size="11" text-anchor="middle" transform="rotate(-90 12 ${(H - PAD) / 2})">Faktisk frekvens (%)</text>
+      <text x="${(W + PAD) / 2}" y="${H - 6}" fill="#8095c0" font-size="11" text-anchor="middle">Predikert sannsynlighet (%)</text>
+      <text x="12" y="${(H - PAD) / 2}" fill="#8095c0" font-size="11" text-anchor="middle" transform="rotate(-90 12 ${(H - PAD) / 2})">Faktisk frekvens (%)</text>
       ${dots}
     </svg>`;
 }
@@ -1644,20 +1644,20 @@ function wpChartHTML(m) {
     <text x="${x(g.min)}" y="${g.side === "home" ? y(0.06) : y(0.94) + 8}" font-size="11" text-anchor="middle">⚽</text>`).join("");
 
   const ticks = [0, 45, 90].map((t) => `
-    <text x="${x(t)}" y="${H - 6}" fill="#838c78" font-size="10" text-anchor="middle">${t}'</text>`).join("");
+    <text x="${x(t)}" y="${H - 6}" fill="#8095c0" font-size="10" text-anchor="middle">${t}'</text>`).join("");
 
   return `
     <div class="m-sec">Kampforløpet${m.state === "in" ? " (live)" : ""}</div>
     <svg viewBox="0 0 ${W} ${H}" style="width:100%" role="img" aria-label="Vinnersannsynlighet gjennom kampen">
-      <path d="${areaH}" fill="rgba(212,255,63,.45)"/>
-      <path d="${areaD}" fill="rgba(61,70,54,.55)"/>
-      <path d="${areaA}" fill="rgba(255,138,61,.40)"/>
+      <path d="${areaH}" fill="rgba(63,217,255,.45)"/>
+      <path d="${areaD}" fill="rgba(44,65,112,.6)"/>
+      <path d="${areaA}" fill="rgba(142,163,207,.4)"/>
       ${goalMarks}${ticks}
     </svg>
     <div class="wp-legend">
-      <span><i style="background:rgba(212,255,63,.7)"></i>${esc(m.home.no)}</span>
-      <span><i style="background:rgba(61,70,54,.9)"></i>Uavgjort</span>
-      <span><i style="background:rgba(255,138,61,.7)"></i>${esc(m.away.no)}</span>
+      <span><i style="background:rgba(63,217,255,.7)"></i>${esc(m.home.no)}</span>
+      <span><i style="background:rgba(44,65,112,.95)"></i>Uavgjort</span>
+      <span><i style="background:rgba(142,163,207,.75)"></i>${esc(m.away.no)}</span>
     </div>
     ${m.aet || m.pens ? `<p class="mvm-note">Grafen dekker ordinær tid — kampen ble avgjort ${m.pens ? "på straffer" : "i ekstraomgangene"}.</p>` : ""}`;
 }

@@ -353,20 +353,20 @@ function wpChartHTML(m) {
     <text x="${x(g.min)}" y="${g.side === "home" ? y(0.06) : y(0.94) + 8}" font-size="11" text-anchor="middle">⚽</text>`).join("");
 
   const ticks = [0, 45, 90].map((t) => `
-    <text x="${x(t)}" y="${H - 6}" fill="#838c78" font-size="10" text-anchor="middle">${t}'</text>`).join("");
+    <text x="${x(t)}" y="${H - 6}" fill="#8095c0" font-size="10" text-anchor="middle">${t}'</text>`).join("");
 
   return `
     <div class="m-sec">Kampforløpet${m.state === "in" ? " (live)" : ""}</div>
     <svg viewBox="0 0 ${W} ${H}" style="width:100%" role="img" aria-label="Vinnersannsynlighet gjennom kampen">
-      <path d="${areaH}" fill="rgba(212,255,63,.45)"/>
-      <path d="${areaD}" fill="rgba(61,70,54,.55)"/>
-      <path d="${areaA}" fill="rgba(255,138,61,.40)"/>
+      <path d="${areaH}" fill="rgba(63,217,255,.45)"/>
+      <path d="${areaD}" fill="rgba(44,65,112,.6)"/>
+      <path d="${areaA}" fill="rgba(142,163,207,.4)"/>
       ${goalMarks}${ticks}
     </svg>
     <div class="wp-legend">
-      <span><i style="background:rgba(212,255,63,.7)"></i>${esc(m.home.short)}</span>
-      <span><i style="background:rgba(61,70,54,.9)"></i>Uavgjort</span>
-      <span><i style="background:rgba(255,138,61,.7)"></i>${esc(m.away.short)}</span>
+      <span><i style="background:rgba(63,217,255,.7)"></i>${esc(m.home.short)}</span>
+      <span><i style="background:rgba(44,65,112,.95)"></i>Uavgjort</span>
+      <span><i style="background:rgba(142,163,207,.75)"></i>${esc(m.away.short)}</span>
     </div>
     <p class="mvm-note">Rekonstruert med dagens ratinger — sannsynlighetene her kan avvike litt fra det som ble vist før kampen.</p>`;
 }
@@ -788,7 +788,7 @@ function tableHTML() {
   <p class="mvm-note">${note}</p>`;
 }
 
-const HIST_COLORS = ["#d4ff3f", "#ff8a3d", "#4a8fe0", "#e5484d", "#b16fd8", "#2ecc71", "#f5c542", "#8a93a8"];
+const HIST_COLORS = ["#3fd9ff", "#ffd23f", "#8fb8ff", "#e5484d", "#b16fd8", "#2ecc71", "#f5c542", "#8a93a8"];
 
 function shortName(display) {
   for (const m of S.matches) {
@@ -826,12 +826,12 @@ function simHistChartHTML() {
   }).join("");
 
   const yticks = [0, 0.2, 0.4, 0.6, 0.8, 1].filter((v) => v <= maxW).map((v) => `
-    <line x1="${PL}" y1="${y(v)}" x2="${W - PR}" y2="${y(v)}" stroke="#2b3226" stroke-dasharray="${v ? "2 4" : "0"}"/>
-    <text x="${PL - 8}" y="${y(v) + 4}" fill="#838c78" font-size="10" text-anchor="end">${v * 100}</text>`).join("");
+    <line x1="${PL}" y1="${y(v)}" x2="${W - PR}" y2="${y(v)}" stroke="#1c2c5c" stroke-dasharray="${v ? "2 4" : "0"}"/>
+    <text x="${PL - 8}" y="${y(v) + 4}" fill="#8095c0" font-size="10" text-anchor="end">${v * 100}</text>`).join("");
 
   const step = Math.max(1, Math.round(snaps.length / 6));
   const xticks = snaps.map((s, i) => (i % step === 0 || i === snaps.length - 1) ? `
-    <text x="${x(i)}" y="${H - PB + 18}" fill="#838c78" font-size="10" text-anchor="middle">${new Date(s.d).toLocaleDateString("nb-NO", { day: "numeric", month: "numeric" })}</text>` : "").join("");
+    <text x="${x(i)}" y="${H - PB + 18}" fill="#8095c0" font-size="10" text-anchor="middle">${new Date(s.d).toLocaleDateString("nb-NO", { day: "numeric", month: "numeric" })}</text>` : "").join("");
 
   return `
     <div class="br-sec">Tittelsjanser over sesongen</div>
