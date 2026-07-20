@@ -1312,6 +1312,6 @@ window.addEventListener("online", wakeUp);
   let lg = new URLSearchParams(location.search).get("lg");
   if (!lg) { try { lg = localStorage.getItem("liga_lg"); } catch { /* ok */ } }
   lg = lg || "all"; // standard: kommende kamper på tvers av alle ligaene
-  setTab(lg === "all" ? "upcoming" : "today");
+  setTab("upcoming"); // «Kommende» er alltid landingsfanen; «I dag» klikker man seg til
   switchLeague(lg);
 })();
