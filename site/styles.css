@@ -678,3 +678,19 @@ body {
 .tabs.all-mode .tab[data-tab="table"],
 .tabs.all-mode .tab[data-tab="sim"],
 .tabs.all-mode .tab[data-tab="power"] { display: none; }
+
+/* liga-filter-chips i «Alle ligaer»-modus */
+.lg-chips { display: none; gap: 7px; flex-wrap: wrap; padding: 12px 0 2px; }
+.lg-chips.show { display: flex; }
+.lg-chip {
+  appearance: none; cursor: pointer; font-family: var(--sans);
+  font-size: 0.8rem; font-weight: 600; padding: 5px 12px; border-radius: 999px;
+  border: 1px solid var(--line-hard); background: var(--panel);
+  color: var(--ink-faint); transition: all 0.12s ease; opacity: 0.55;
+}
+.lg-chip:hover { color: var(--ink-dim); border-color: var(--volt-dim); }
+.lg-chip.on {
+  opacity: 1; color: var(--ink); background: var(--panel-2);
+  border-color: var(--volt-dim);
+}
+.sim-table .xpts { color: var(--ink); font-weight: 700; }

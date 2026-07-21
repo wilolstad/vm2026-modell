@@ -435,10 +435,12 @@ function applyElo() {
   }
   S.mu = (muPrior * MU_WEIGHT + cumG) / (MU_WEIGHT + cumM);
 
-  // prediksjoner for kommende/live kamper
+  // prediksjoner for kommende/live kamper. Målmarkedene forhåndsberegnes i
+  // riktig liga-kontekst her, så Bets-fanen virker også i «Alle ligaer».
   for (const m of S.matches) {
     if (m.state === "post") continue;
     m.pred = predict(m);
+    if (m.state === "pre") m.gm = goalMarkets(m);
     if (m.state === "in") m.livePred = predictLive(m);
   }
 }
@@ -518,7 +520,7 @@ async function simSeason(runs) {
 
   const n = names.length;
   const cfg = LEAGUES[S.lg];
-  const counts = names.map(() => ({ w: 0, t4: 0, po: 0, rel: 0, posSum: 0 }));
+  const counts = names.map(() => ({ w: 0, t4: 0, po: 0, rel: 0, posSum: 0, ptsSum: 0 }));
   const order = names.map((_, i) => i);
   const relFrom = n - cfg.relDirect;          // 0-indeksert: posisjoner >= relFrom rykker ned
   const poPos = cfg.playoff ? relFrom - 1 : -1;
@@ -545,6 +547,7 @@ async function simSeason(runs) {
     for (let pos = 0; pos < n; pos++) {
       const c = counts[order[pos]];
       c.posSum += pos + 1;
+      c.ptsSum += pts[order[pos]];
       if (pos === 0) c.w++;
       if (pos < 4) c.t4++;
       if (pos === poPos) c.po++;
@@ -559,6 +562,7 @@ async function simSeason(runs) {
     po: counts[i].po / runs,
     rel: counts[i].rel / runs,
     avgPos: counts[i].posSum / runs,
+    xPts: counts[i].ptsSum / runs,
   })).sort((a, b) => b.w - a.w || b.t4 - a.t4 || a.avgPos - b.avgPos);
 }
 
@@ -596,11 +600,28 @@ function fetchT(url, ms = 15000) {
 
 function render() {
   renderStats();
+  renderLgChips();
   renderContent();
   renderStatus();
   renderTicker();
   $("last-updated").textContent =
     "Sist oppdatert " + new Date().toLocaleTimeString("nb-NO", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+}
+
+/* Liga-filter i «Alle ligaer»-modus: chips for å slå ligaer av/på i lista.
+   S.lgHidden = Set av skjulte ligakoder (tom = alle vises). */
+function renderLgChips() {
+  const el = $("lg-chips");
+  if (!el) return;
+  if (S.lg !== "all") { el.innerHTML = ""; el.classList.remove("show"); return; }
+  el.classList.add("show");
+  // bare ligaer som faktisk har kamper i feeden akkurat nå
+  const present = new Set(S.matches.map((m) => m.lg));
+  const codes = Object.keys(LEAGUES).filter((c) => present.has(c));
+  el.innerHTML = codes.map((c) => {
+    const on = !S.lgHidden.has(c);
+    return `<button class="lg-chip ${on ? "on" : ""}" data-lg="${c}">${LEAGUES[c].flagg} ${esc(LEAGUES[c].name)}</button>`;
+  }).join("");
 }
 
 function renderStatus() {
@@ -686,6 +707,7 @@ function renderStats() {
 
 function visibleMatches() {
   let ms = [...S.matches];
+  if (S.lg === "all" && S.lgHidden.size) ms = ms.filter((m) => !S.lgHidden.has(m.lg));
   const now = new Date();
   switch (S.tab) {
     case "today":    ms = ms.filter((m) => sameDay(m.date, now) || m.state === "in"); break;
@@ -693,8 +715,9 @@ function visibleMatches() {
     case "results":  ms = ms.filter((m) => m.state === "post"); break;
   }
   ms.sort((a, b) => (S.tab === "results" ? b.date - a.date : a.date - b.date));
-  if (S.tab === "upcoming") ms = ms.slice(0, 60);
-  if (S.tab === "results") ms = ms.slice(0, 60);
+  // i all-modus vises flere kort siden de deles på tvers av ligaer
+  const cap = S.lg === "all" ? 100 : 60;
+  if (S.tab === "upcoming" || S.tab === "results") ms = ms.slice(0, cap);
   return ms;
 }
 
@@ -879,11 +902,12 @@ function simTabHTML() {
     <div class="br-sec" style="margin-top:26px">Sesongen simulert nå</div>
     <p class="sim-intro">Alle gjenstående kamper simulert ${SIM_RUNS.toLocaleString("nb-NO")} ganger oppå dagens tabell, med dagens Elo-ratinger. Re-simuleres når resultater endrer seg.</p>
     <div class="table-scroll"><table class="power-table sim-table">
-    <thead><tr><th></th><th>Lag</th><th class="num-h">Seriemester</th><th class="num-h">Topp 4</th>${cfg.playoff ? `<th class="num-h">Playoff</th>` : ""}<th class="num-h">Nedrykk</th><th class="num-h">Snittplass</th><th class="sim-barcol"></th></tr></thead>
+    <thead><tr><th></th><th>Lag</th><th class="num-h">Forventet poeng</th><th class="num-h">Seriemester</th><th class="num-h">Topp 4</th>${cfg.playoff ? `<th class="num-h">Playoff</th>` : ""}<th class="num-h">Nedrykk</th><th class="num-h">Snittplass</th><th class="sim-barcol"></th></tr></thead>
     <tbody>${S.sim.map((r, i) => `
       <tr>
         <td class="rank">${i + 1}</td>
         <td><span class="tcell">${r.team.logo ? `<img src="${r.team.logo}" alt="">` : ""}${esc(r.team.short)}</span></td>
+        <td class="num xpts">${Math.round(r.xPts)}</td>
         <td class="num win">${fp(r.w)}</td>
         <td class="num">${fp(r.t4)}</td>
         ${cfg.playoff ? `<td class="num">${fp(r.po)}</td>` : ""}
@@ -892,7 +916,7 @@ function simTabHTML() {
         <td class="sim-barcol"><div class="sim-bar"><i style="width:${(r.w / maxW) * 100}%"></i></div></td>
       </tr>`).join("")}
     </tbody></table></div>
-    <p class="mvm-note">Tabellplassering avgjøres på poeng → målforskjell → scorede mål; ligaspesifikke regler (innbyrdes oppgjør m.m.) er forenklet bort. «Nedrykk» = direkte nedrykk${cfg.playoff ? ", «Playoff» = kvalikplassen rett over" : ""}.</p>`;
+    <p class="mvm-note">«Forventet poeng» = snittet av lagets sluttpoeng over alle simuleringene (inkl. poengene det alt har). Tabellplassering avgjøres på poeng → målforskjell → scorede mål; ligaspesifikke regler (innbyrdes oppgjør m.m.) er forenklet bort. «Nedrykk» = direkte nedrykk${cfg.playoff ? ", «Playoff» = kvalikplassen rett over" : ""}.</p>`;
 }
 
 function powerHTML() {
@@ -925,14 +949,159 @@ function powerHTML() {
   <p class="mvm-note">Kilde: ${src}. «Siden snapshot» = klient-replay av kamper spilt etter siste natt-bygg.${anyAd ? " «Angrep vs Elo» = scorer så mye mer/mindre enn Elo-differansene tilsier; «Forsvar vs Elo» = slipper inn så mye mindre/mer. Modellen bruker en kraftig dempet versjon av disse tallene." : ""}</p>`;
 }
 
+/* ---------- bets + regnskap ---------- */
+
+/* Modellens picks på tvers av markeder for kommende kamper. Bruker forhånds-
+   beregnet m.pred + m.gm, så det funker også i «Alle ligaer». */
+function betCandidates() {
+  const out = [];
+  const upcoming = S.matches
+    .filter((m) => m.state === "pre" && m.pred && m.gm)
+    .filter((m) => !(S.lg === "all" && S.lgHidden.has(m.lg)))
+    .sort((a, b) => a.date - b.date);
+  for (const m of upcoming) {
+    const p = m.pred, gm = m.gm, mk = m.market;
+    const push = (market, prob, dk = null) =>
+      out.push({ m, market, prob, dk,
+        fair: prob > 0.01 ? 1 / prob : null,
+        ev: dk ? prob * dk - 1 : null });
+    push(`${m.home.short} vinner`, p.pH, mk?.oH ?? null);
+    push("Uavgjort", p.pD, mk?.oD ?? null);
+    push(`${m.away.short} vinner`, p.pA, mk?.oA ?? null);
+    push(`Dobbeltsjanse ${m.home.short}/uavgjort`, p.pH + p.pD);
+    push(`Dobbeltsjanse ${m.away.short}/uavgjort`, p.pA + p.pD);
+    push("Over 2,5 mål", gm.pO25);
+    push("Under 2,5 mål", 1 - gm.pO25);
+    push("Over 3,5 mål", gm.pO35);
+    push("Under 1,5 mål", 1 - gm.pO15);
+    push("Begge lag scorer", gm.pBTTS);
+    push("Ikke begge lag scorer", 1 - gm.pBTTS);
+  }
+  return out;
+}
+
+const fmtOdds = (o) => (o != null ? o.toFixed(2).replace(".", ",") : "–");
+const fmtPctD = (x) => (x * 100).toFixed(1).replace(".", ",");
+
+/* Ligaene regnskapet skal dekke: alle i all-modus, ellers valgt liga */
+function ledgerLeagues() {
+  if (!S.ledger?.leagues) return [];
+  return S.lg === "all" ? Object.keys(S.ledger.leagues) : [S.lg];
+}
+
+function regnskapHTML() {
+  const lgs = ledgerLeagues();
+  let n = 0, hits = 0, ll = 0;
+  let rows = [];
+  for (const lg of lgs) {
+    const L = S.ledger.leagues[lg];
+    if (!L) continue;
+    n += L.agg?.n || 0; hits += L.agg?.hits || 0; ll += L.agg?.ll || 0;
+    for (const r of L.rows || []) rows.push({ lg, r });
+  }
+  if (!n) {
+    return `<div class="br-sec">Regnskapet</div>
+      <p class="mvm-note">Modellens pre-kamp-sannsynligheter snapshottes hver natt og gjøres opp mot fasit når kampene er spilt. Regnskapet er tomt fordi ingen kamper er gjort opp ennå — det begynner å telle så snart en snapshottet kamp er ferdigspilt. Etterprøvbart i <a href="https://github.com/wilolstad/vm2026-modell/blob/main/site/ledger.json" rel="noopener">git-historikken</a>.</p>`;
+  }
+  rows.sort((a, b) => (a.r[1] < b.r[1] ? 1 : -1));
+  rows = rows.slice(0, 20);
+  const acc = Math.round((hits / n) * 100);
+  const avgLl = (ll / n).toFixed(3).replace(".", ",");
+  const row = ({ lg, r }) => {
+    const [, date, name, pH, pD, pA, score, hit] = r;
+    const mx = Math.max(pH, pD, pA);
+    const pick = mx === pH ? "H" : mx === pA ? "A" : "U";
+    const flag = LEAGUES[lg]?.flagg || "";
+    return `<tr>
+      <td>${esc(date.slice(5))}</td>
+      <td class="bmatchname">${S.lg === "all" ? flag + " " : ""}${esc(name)}</td>
+      <td class="num">${pick} ${Math.round(mx * 100)} %</td>
+      <td class="num">${esc(score.replace("-", "–"))}</td>
+      <td class="num ${hit ? "up" : "down"}">${hit ? "✓" : "✗"}</td>
+    </tr>`;
+  };
+  return `
+    <div class="br-sec">Regnskapet ${S.lg === "all" ? "· alle ligaer" : "· " + esc(LEAGUES[S.lg].name)}</div>
+    <div class="ledger">
+      <div class="led-card"><div class="v">${acc} %</div><div class="k">1X2-treff (${n} kamper målt)</div></div>
+      <div class="led-card"><div class="v">${avgLl}</div><div class="k">Snitt-logloss (lavere er bedre)</div></div>
+      <div class="led-card"><div class="v">${hits} / ${n}</div><div class="k">Riktig utfall truffet</div></div>
+    </div>
+    <p class="mvm-note">Alle prediksjoner ble snapshottet <b>før</b> avspark og committes til <a href="https://github.com/wilolstad/vm2026-modell/blob/main/site/ledger.json" rel="noopener">repoet</a> — ingen etterpåklokskap. Logloss straffer selvsikre feil; til referanse gir «alltid 33/33/33» ca. 1,10.</p>
+    <div class="table-scroll"><table class="power-table bets-table">
+      <thead><tr><th>Dato</th><th>Kamp</th><th class="num-h">Modell</th><th class="num-h">Resultat</th><th class="num-h">Traff</th></tr></thead>
+      <tbody>${rows.map(row).join("")}</tbody>
+    </table></div>`;
+}
+
+function betsHTML() {
+  const cands = betCandidates();
+  const soon = Date.now() + 48 * 3600 * 1000;
+  // spillbart bånd: fair odds 1,40–4,00 (p mellom 25 % og 71 %)
+  const playable = cands.filter((c) => c.prob <= 0.72 && c.prob >= 0.25);
+  const evBets = playable.filter((c) => c.ev != null).sort((a, b) => b.ev - a.ev);
+  const modelBets = playable.filter((c) => c.ev == null).sort((a, b) => b.prob - a.prob).slice(0, 12);
+
+  const hero = evBets.find((c) => c.ev > 0 && c.m.date < soon)
+    || playable.filter((c) => c.m.date < soon).sort((a, b) => (b.ev ?? b.prob - 1) - (a.ev ?? a.prob - 1))[0]
+    || null;
+
+  const flag = (m) => (S.lg === "all" ? (LEAGUES[m.lg]?.flagg || "") + " " : "");
+  const heroHtml = hero ? `
+    <div class="bet-hero" data-id="${hero.m.id}">
+      <div class="bh-label">Dagens bet</div>
+      <div class="bh-market">${esc(hero.market)}</div>
+      <div class="bh-match">${flag(hero.m)}${esc(hero.m.home.short)} – ${esc(hero.m.away.short)} · ${cap(fmtDayKey(hero.m.date))} ${fmtTime(hero.m.date)}</div>
+      <div class="bh-nums">
+        <span><b>${pct(hero.prob)}</b> modell</span>
+        <span><b>${fmtOdds(hero.fair)}</b> fair odds</span>
+        ${hero.dk != null ? `<span><b>${fmtOdds(hero.dk)}</b> odds</span>` : ""}
+        ${hero.ev != null ? `<span class="bh-edge"><b>${hero.ev > 0 ? "+" : ""}${fmtPctD(hero.ev)} %</b> EV</span>` : ""}
+      </div>
+    </div>` : "";
+
+  const betRow = (c, mode) => `
+    <tr class="bet-row" data-id="${c.m.id}">
+      <td>${esc(c.market)}</td>
+      <td class="bmatchname">${flag(c.m)}${esc(c.m.home.abbr)}–${esc(c.m.away.abbr)} · ${fmtTime(c.m.date)}</td>
+      <td class="num win">${pct(c.prob)}</td>
+      <td class="num">${fmtOdds(c.fair)}</td>
+      ${mode === "ev" ? `<td class="num">${fmtOdds(c.dk)}</td>
+      <td class="num ${c.ev > 0 ? "up" : "down"}">${c.ev > 0 ? "+" : ""}${fmtPctD(c.ev)} %</td>` : ""}
+    </tr>`;
+
+  const betsSection = !cands.length
+    ? `<p class="mvm-note">Ingen kommende kamper med kjente lag akkurat nå.</p>`
+    : `
+    <p class="sim-intro">Kun bets i spillbart oddsområde (fair odds 1,40–4,00). Der ESPN har odds vises <b>EV</b> = modellens sannsynlighet × odds − 1; positiv EV betyr at modellen mener oddsen er feilpriset. Klikk en rad for kampdetaljer. Ikke betting-råd — modellen vet ingenting om skader eller rotasjon.</p>
+    ${heroHtml}
+    ${evBets.length ? `
+    <div class="br-sec">Verdi mot markedet (EV)</div>
+    <div class="table-scroll"><table class="power-table bets-table">
+      <thead><tr><th>Marked</th><th>Kamp</th><th class="num-h">Modell</th><th class="num-h">Fair</th><th class="num-h">Odds</th><th class="num-h">EV</th></tr></thead>
+      <tbody>${evBets.slice(0, 10).map((c) => betRow(c, "ev")).join("")}</tbody>
+    </table></div>
+    <p class="mvm-note">Negativ EV = markedet priser bedre enn modellen tror — normaltilstanden mot skarpe odds. Positiv EV er uenighet, ikke garantert verdi.</p>` : ""}
+    <div class="br-sec">Modellens beste picks</div>
+    <div class="table-scroll"><table class="power-table bets-table">
+      <thead><tr><th>Marked</th><th>Kamp</th><th class="num-h">Modell</th><th class="num-h">Fair odds</th></tr></thead>
+      <tbody>${modelBets.map((c) => betRow(c, "plain")).join("")}</tbody>
+    </table></div>`;
+
+  return regnskapHTML() + `<div style="margin-top:34px"></div>` + betsSection;
+}
+
 function renderContent() {
   const el = $("content");
+  if (S.tab === "bets") { el.innerHTML = betsHTML(); return; }
   if (S.tab === "table") { el.innerHTML = tableHTML(); return; }
   if (S.tab === "sim") { el.innerHTML = simTabHTML(); return; }
   if (S.tab === "power") { el.innerHTML = powerHTML(); return; }
   const ms = visibleMatches();
   if (!ms.length) {
-    const msg = !S.matches.length
+    const msg = S.lg === "all" && S.lgHidden.size
+      ? "Ingen kamper i de valgte ligaene — slå på flere over."
+      : !S.matches.length
       ? "Terminlisten for denne ligaen er ikke publisert ennå — kommer når sesongen nærmer seg."
       : S.tab === "today" ? "Ingen kamper i dag — sjekk «Kommende»." : "Ingen kamper her.";
     el.innerHTML = `<div class="empty">${msg}</div>`;
@@ -1280,7 +1449,16 @@ document.addEventListener("click", (e) => {
     renderContent();
     return;
   }
-  const card = e.target.closest(".match");
+  const lgc = e.target.closest(".lg-chip");
+  if (lgc) {
+    const c = lgc.dataset.lg;
+    if (S.lgHidden.has(c)) S.lgHidden.delete(c); else S.lgHidden.add(c);
+    try { localStorage.setItem("liga_hidden", JSON.stringify([...S.lgHidden])); } catch { /* ok */ }
+    renderLgChips();
+    renderContent();
+    return;
+  }
+  const card = e.target.closest(".match, .bet-row, .bet-hero");
   if (card) {
     const m = S.matches.find((x) => x.id === card.dataset.id);
     if (m) openModal(m);
@@ -1308,6 +1486,9 @@ window.addEventListener("online", wakeUp);
     .map(([code, l]) => `<option value="${code}">${l.flagg} ${l.name}</option>`)
     .join("");
   sel.addEventListener("change", () => switchLeague(sel.value));
+
+  try { S.lgHidden = new Set(JSON.parse(localStorage.getItem("liga_hidden") || "[]")); }
+  catch { S.lgHidden = new Set(); }
 
   let lg = new URLSearchParams(location.search).get("lg");
   if (!lg) { try { lg = localStorage.getItem("liga_lg"); } catch { /* ok */ } }
