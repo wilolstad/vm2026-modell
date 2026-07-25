@@ -1,5 +1,5 @@
 {
- "generated": "2026-07-24",
+ "generated": "2026-07-25",
  "leagues": {
   "nor.1": {
    "name": "Eliteserien",
@@ -833,122 +833,95 @@
   "ksa.1": {
    "name": "Saudi Pro League",
    "teams": {
-    "Al Ahli": 1779.1,
-    "Al Hazem": 1459.5,
-    "Al Tai": 1386.5,
-    "Damac": 1418.1,
-    "Al Fayha": 1451.2,
-    "Al Khaleej": 1406.7,
-    "Al Fateh": 1456.1,
-    "Al Taawoun": 1541.8,
-    "Al Riyadh": 1403.7,
-    "Al Wehda": 1430.5,
     "Abha": 1380.1,
-    "Al Hilal": 1849.2,
-    "Al Raed": 1327.3,
-    "Al Ittihad": 1616.2,
-    "Al Ettifaq": 1539.3,
-    "Al Nassr": 1820.5,
+    "Al Hazem": 1459.5,
+    "Al Ahli": 1779.1,
     "Al Shabab": 1488.5,
-    "Al Okhdood": 1329.7,
-    "Al Orobah": 1384.1,
     "Al Qadsiah": 1766.1,
-    "Al Kholood": 1425.3,
     "Neom SC": 1503.7,
-    "Al Najma": 1337.0
+    "Al Fayha": 1451.2,
+    "Al Ettifaq": 1539.3,
+    "Al Riyadh": 1403.7,
+    "Al Hilal": 1849.2,
+    "Al Taawoun": 1541.8,
+    "Al Khaleej": 1406.7,
+    "Al Ittihad": 1616.2,
+    "Al Kholood": 1425.3,
+    "Al Nassr": 1820.5,
+    "Al Fateh": 1456.1
    },
    "meta": {
-    "Al Ahli": {
-     "short": "Al Ahli",
-     "abbr": "AL "
-    },
-    "Al Hazem": {
-     "short": "Al Hazem",
-     "abbr": "AL "
-    },
-    "Al Tai": {
-     "short": "Al Tai",
-     "abbr": "AL "
-    },
-    "Damac": {
-     "short": "Damac",
-     "abbr": "DAM"
-    },
-    "Al Fayha": {
-     "short": "Al Fayha",
-     "abbr": "AL "
-    },
-    "Al Khaleej": {
-     "short": "Al Khaleej",
-     "abbr": "AL "
-    },
-    "Al Fateh": {
-     "short": "Al Fateh",
-     "abbr": "AL "
-    },
-    "Al Taawoun": {
-     "short": "Al Taawoun",
-     "abbr": "AL "
-    },
-    "Al Riyadh": {
-     "short": "Al Riyadh",
-     "abbr": "AL "
-    },
-    "Al Wehda": {
-     "short": "Al Wehda",
-     "abbr": "AL "
-    },
     "Abha": {
      "short": "Abha",
      "abbr": "ABH"
     },
-    "Al Hilal": {
-     "short": "Al Hilal",
-     "abbr": "AL "
+    "Al Hazem": {
+     "short": "Al Hazem",
+     "abbr": "HAZ"
     },
-    "Al Raed": {
-     "short": "Al Raed",
-     "abbr": "AL "
+    "Al Diriyah": {
+     "short": "Al Diriyah",
+     "abbr": "DIR"
     },
-    "Al Ittihad": {
-     "short": "Al Ittihad",
-     "abbr": "AL "
-    },
-    "Al Ettifaq": {
-     "short": "Al Ettifaq",
-     "abbr": "AL "
-    },
-    "Al Nassr": {
-     "short": "Al Nassr",
-     "abbr": "AL "
+    "Al Ahli": {
+     "short": "Al Ahli",
+     "abbr": "AHL"
     },
     "Al Shabab": {
      "short": "Al Shabab",
-     "abbr": "AL "
-    },
-    "Al Okhdood": {
-     "short": "Al Okhdood",
-     "abbr": "AL "
-    },
-    "Al Orobah": {
-     "short": "Al Orobah",
-     "abbr": "AL "
+     "abbr": "SHA"
     },
     "Al Qadsiah": {
      "short": "Al Qadsiah",
-     "abbr": "AL "
-    },
-    "Al Kholood": {
-     "short": "Al Kholood",
-     "abbr": "AL "
+     "abbr": "QAD"
     },
     "Neom SC": {
      "short": "Neom SC",
-     "abbr": "NEO"
+     "abbr": "NEOM"
     },
-    "Al Najma": {
-     "short": "Al Najma",
-     "abbr": "AL "
+    "Al Fayha": {
+     "short": "Al Fayha",
+     "abbr": "FAY"
+    },
+    "Al Ettifaq": {
+     "short": "Al Ettifaq",
+     "abbr": "ETT"
+    },
+    "Al Riyadh": {
+     "short": "Al Riyadh",
+     "abbr": "RIY"
+    },
+    "Al Hilal": {
+     "short": "Al Hilal",
+     "abbr": "HIL"
+    },
+    "Al-Faisaly": {
+     "short": "Al-Faisaly",
+     "abbr": "ALF"
+    },
+    "Al Taawoun": {
+     "short": "Al Taawoun",
+     "abbr": "TAA"
+    },
+    "Al Khaleej": {
+     "short": "Al Khaleej",
+     "abbr": "KHA"
+    },
+    "Al Ittihad": {
+     "short": "Al Ittihad",
+     "abbr": "ITT"
+    },
+    "Al Kholood": {
+     "short": "Al Kholood",
+     "abbr": "KHO"
+    },
+    "Al Nassr": {
+     "short": "Al Nassr",
+     "abbr": "NSR"
+    },
+    "Al Fateh": {
+     "short": "Al Fateh",
+     "abbr": "FAT"
     }
    },
    "mu": 3.01,
