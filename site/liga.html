@@ -14,7 +14,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=Barlow+Condensed:wght@600;700;800&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=signatur3">
+<link rel="stylesheet" href="styles.css?v=signatur4">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' fill='%230a1430'/><text x='50' y='76' font-size='64' font-family='Arial Black,Arial' font-weight='900' text-anchor='middle' fill='%233fd9ff'>⚽</text></svg>">
 </head>
 <body>
@@ -72,7 +72,7 @@
     <div class="method-grid">
       <div>
         <h3>1 · Klubb-Elo</h3>
-        <p>Ratingene hentes fra <a href="http://clubelo.com" rel="noopener">ClubElo</a> hver natt (Saudi Pro League dekkes ikke der — de ratingene beregnes ved å replaye alle resultater siden 2023 fra ESPN). Kamper spilt etter siste natt-oppdatering replays i nettleseren, så ratingene er alltid ferske. Hjemmefordelen er backtestet per liga — fra +10 Elo i Bundesliga til +65 i LaLiga og Liga Portugal.</p>
+        <p>Hver liga får sine egne Elo-ratinger ved å replaye tre sesonger med resultater fra ESPN kronologisk (K&nbsp;=&nbsp;25, margin-vekting). Kamper spilt etter siste natt-oppdatering replays videre i nettleseren, så ratingene er alltid ferske. Hjemmefordelen er backtestet per liga — fra +10 Elo i Bundesliga til +65 i LaLiga og Liga Portugal. Nyopprykkede lag uten historikk får ligaens bunnrating minus 25.</p>
       </div>
       <div>
         <h3>2 · Poisson per liga</h3>
@@ -91,7 +91,7 @@
         <p>Modellens pre-kamp-sannsynligheter snapshottes hver natt og committes til <a href="https://github.com/wilolstad/vm2026-modell" rel="noopener">repoet</a> — når kampen er spilt gjøres de opp mot fasit. Treffprosenten i toppen kommer fra dette globale regnskapet, som er etterprøvbart i git-historikken: ingen etterpåklokskap. Der ESPN har odds vises markedets impliserte sannsynligheter ved siden av modellens. Modellen vet ingenting om skader, rotasjon eller kampprogram — bruk den som referanse, ikke fasit.</p>
       </div>
     </div>
-    <p class="method-note">Datakilder: ESPN (uoffisielt API) og ClubElo. Nyopprykkede lag uten ClubElo-rating får ligaens bunnrating minus 25. Ikke betting-råd.</p>
+    <p class="method-note">Datakilde: ESPN (uoffisielt API) — både kamper, resultater og de replayede Elo-ratingene. Ikke betting-råd.</p>
   </section>
 
 </main>

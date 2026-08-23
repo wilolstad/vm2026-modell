@@ -703,3 +703,6 @@ body {
   font-size: 0.9rem; color: var(--ink-dim); line-height: 1.5;
 }
 .rating-warn b { color: var(--market); }
+
+/* stat-boks som venter på data (regnskap ikke gjort opp ennå) */
+.stat.pending .v { color: var(--ink-faint); }

@@ -453,7 +453,7 @@ function applyElo() {
 
 /* Pre-kamp-prediksjoner snapshottes i localStorage FØR avspark — treffprosenten
    måles kun mot disse, så den er ærlig (ingen etterpåklokskap). */
-function predsKey() { return "liga_preds_v1_" + cfgLg(); }
+function predsKey() { return "liga_preds_v2_" + cfgLg(); }
 
 function snapshotPreds() {
   try {
@@ -673,42 +673,78 @@ function renderTicker() {
   el.innerHTML = html;
 }
 
-function renderStats() {
-  const played = S.matches.filter((m) => m.state === "post");
-  const goals = played.reduce((s, m) => s + (m.home.score || 0) + (m.away.score || 0), 0);
-  const today = S.matches.filter((m) => sameDay(m.date, new Date())).length;
-  const total = S.matches.length;
-
-  // treff kun mot prediksjoner snapshottet før avspark
+/* Lokalt treff-/klink-regnskap fra pre-kamp-snapshots. Aggregerer på tvers av
+   ligaer i «Alle ligaer»-modus (snapshots lagres per liga, ikke under «all»). */
+function localPerf() {
+  const codes = S.lg === "all" ? [...new Set(S.matches.map((m) => m.lg))] : [S.lg];
+  const byId = {};
+  for (const m of S.matches) if (m.state === "post" && m.home.score != null) byId[m.id] = m;
   let preds = 0, hits = 0, exact = 0;
-  try {
-    const st = JSON.parse(localStorage.getItem(predsKey()) || "{}");
-    for (const m of played) {
-      const p = st[m.id];
-      if (!p) continue;
+  for (const lg of codes) {
+    let st = {};
+    try { st = JSON.parse(localStorage.getItem("liga_preds_v2_" + lg) || "{}"); } catch { /* privat modus */ }
+    for (const id in st) {
+      const m = byId[id];
+      if (!m) continue;
+      const p = st[id];
       preds++;
       const mx = Math.max(p.pH, p.pD, p.pA);
       const po = mx === p.pH ? "H" : mx === p.pA ? "A" : "D";
       if (po === outcomeOf(m)) hits++;
       if (p.top === m.home.score + "-" + m.away.score) exact++;
     }
-  } catch { /* privat modus */ }
-
-  // globalt regnskap (nightly commit) foretrekkes; localStorage som fallback
-  let glob = S.ledger?.leagues?.[S.lg]?.agg;
-  if (S.lg === "all" && S.ledger?.leagues) {
-    glob = Object.values(S.ledger.leagues).reduce(
-      (a, l) => ({ n: a.n + (l.agg?.n || 0), hits: a.hits + (l.agg?.hits || 0) }), { n: 0, hits: 0 });
   }
-  const hitCell = glob && glob.n > 0
-    ? `<div class="stat hit"><div class="v">${Math.round((glob.hits / glob.n) * 100)} %</div><div class="k">1X2-treff (globalt, ${glob.n} målt)</div></div>`
-    : `<div class="stat hit"><div class="v">${preds ? Math.round((hits / preds) * 100) + " %" : "–"}</div><div class="k">1X2-treff (${preds} målt)</div></div>`;
+  return { preds, hits, exact };
+}
+
+function renderStats() {
+  const played = S.matches.filter((m) => m.state === "post");
+  const goals = played.reduce((s, m) => s + (m.home.score || 0) + (m.away.score || 0), 0);
+  const today = S.matches.filter((m) => sameDay(m.date, new Date())).length;
+  const total = S.matches.length;
+
+  // globalt regnskap (nightly commit, etterprøvbart) foretrekkes for treff;
+  // localStorage-snapshots som fallback, og eneste kilde for «klink».
+  const led = S.lg === "all"
+    ? (S.ledger?.leagues
+        ? Object.values(S.ledger.leagues).reduce((a, l) => ({ n: a.n + (l.agg?.n || 0), hits: a.hits + (l.agg?.hits || 0) }), { n: 0, hits: 0 })
+        : { n: 0, hits: 0 })
+    : (S.ledger?.leagues?.[S.lg]?.agg || { n: 0, hits: 0 });
+  const lp = localPerf();
+
+  const treffPct = led.n ? led.hits / led.n : (lp.preds ? lp.hits / lp.preds : null);
+  const treffN = led.n || lp.preds;
+
+  // spilt-teller: i all-modus er totalen (alle sesongkamper) forvirrende — vis kun antall
+  const spiltTile = S.lg === "all"
+    ? `<div class="stat"><div class="v">${played.length}</div><div class="k">Kamper spilt i sesongen</div></div>`
+    : `<div class="stat"><div class="v">${played.length}<small> / ${total}</small></div><div class="k">Kamper spilt</div></div>`;
+
+  // treff/klink vises når de har data; ellers fylles baren med live-tall så den
+  // aldri ser tom ut (regnskapet ble nullstilt 23/8 og bygger seg opp igjen).
+  let perfTiles;
+  if (treffPct != null || lp.preds > 0) {
+    const treffTile = treffPct != null
+      ? `<div class="stat hit"><div class="v">${Math.round(treffPct * 100)} %</div><div class="k">1X2-treff${S.lg === "all" ? " (globalt)" : ""} · ${treffN} målt</div></div>`
+      : `<div class="stat hit pending"><div class="v">—</div><div class="k">1X2-treff · kommer</div></div>`;
+    const klinkTile = lp.preds
+      ? `<div class="stat hit"><div class="v">${Math.round((lp.exact / lp.preds) * 100)} %</div><div class="k">Klink · ${lp.preds} målt</div></div>`
+      : `<div class="stat hit pending"><div class="v">—</div><div class="k">Klink · kommer</div></div>`;
+    perfTiles = treffTile + klinkTile;
+  } else {
+    const liveN = S.matches.filter((m) => m.state === "in").length;
+    const wk = Date.now() + 7 * 86400000;
+    const soon = S.matches.filter((m) => m.state === "pre" && m.date <= wk).length;
+    perfTiles = `
+      <div class="stat"><div class="v">${liveN}</div><div class="k">Kamper live nå</div></div>
+      <div class="stat"><div class="v">${soon}</div><div class="k">Kamper neste uke</div></div>`;
+  }
+
   $("stats").innerHTML = `
-    <div class="stat"><div class="v">${played.length}<small> / ${total}</small></div><div class="k">Kamper spilt</div></div>
+    ${spiltTile}
     <div class="stat"><div class="v">${goals}</div><div class="k">Mål totalt</div></div>
     <div class="stat"><div class="v">${today}</div><div class="k">Kamper i dag</div></div>
-    ${hitCell}
-    <div class="stat hit"><div class="v">${preds ? Math.round((exact / preds) * 100) + " %" : "–"}</div><div class="k">Klink</div></div>`;
+    ${perfTiles}`;
 }
 
 function visibleMatches() {
