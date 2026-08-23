@@ -392,59 +392,66 @@ function wpChartHTML(m) {
    så alt fra og med D-1 replays her. */
 function applyElo() {
   const entry = S.eloData?.leagues?.[cfgLg()];
-  S.elo = {};
-  S.eloSnap = {};
-  S.ad = entry?.ad || {};
   S.mu = entry?.mu ?? LEAGUES[cfgLg()].muFb;
   // Har ligaen ratinger i det hele tatt? Uten dem får alle lag samme fallback
   // og prediksjonene blir ren støy — da er det ærligere å ikke vise dem.
   const hasRatings = !!(entry && entry.teams && Object.keys(entry.teams).length);
   S.ratingsOk = hasRatings;
-  if (entry) {
-    for (const [name, elo] of Object.entries(entry.teams)) {
-      S.elo[name] = elo;
-      S.eloSnap[name] = elo;
-    }
+  if (!hasRatings) {
+    S.elo = {}; S.eloSnap = {}; S.ad = {};
+    for (const m of S.matches) { m.noRatings = true; m.pred = null; m.gm = null; m.livePred = null; }
+    return;
   }
+
+  // entry.teams = ESPN-replay t.o.m. forrige sesong (baseline). Vi replayer HELE
+  // inneværende sesong kronologisk i nettleseren og lagrer en prediksjon per
+  // spilt kamp laget FØR resultatet ble kjent — ærlig out-of-sample, akkurat
+  // som VM-siden. Både Elo og angreps-/forsvarssplitt (S.ad) går walk-forward.
+  const REPLAY_K = 25;
+  S.elo = {}; S.eloSnap = {}; S.ad = {};
+  for (const [name, elo] of Object.entries(entry.teams)) { S.elo[name] = elo; S.eloSnap[name] = elo; }
   // lag i terminlisten uten rating: bunn minus 25 (nyopprykket)
   for (const m of S.matches) {
     for (const t of [m.home, m.away]) {
-      if (!(t.name in S.elo)) {
-        const v = teamElo(t.name);
-        S.elo[t.name] = v;
-        S.eloSnap[t.name] = v;
-      }
+      if (!(t.name in S.elo)) { const v = teamElo(t.name); S.elo[t.name] = v; S.eloSnap[t.name] = v; }
     }
   }
 
-  // løpende målsnitt: forrige sesong som prior, denne sesongen oppdaterer
-  const generated = S.eloData ? new Date(S.eloData.generated + "T00:00:00Z") : null;
-  const replayFrom = generated ? generated.getTime() - 86400000 : Infinity;
+  // oppdater att/def-tilstanden med en spilt kamp (scoret/forventet, mål)
+  const bumpAd = (hn, an, hs, as_) => {
+    const L = lambdas(teamElo(hn) + HFA(), teamElo(an));
+    const H = S.ad[hn] || (S.ad[hn] = [0, 0, 0, 0]);
+    const A = S.ad[an] || (S.ad[an] = [0, 0, 0, 0]);
+    H[0] += hs; H[1] += L.lh; H[2] += as_; H[3] += L.la;
+    A[0] += as_; A[1] += L.la; A[2] += hs; A[3] += L.lh;
+  };
+
   const muPrior = S.mu;
   let cumG = 0, cumM = 0;
-
   const played = S.matches
     .filter((m) => m.state === "post" && m.home.score != null)
     .sort((a, b) => a.date - b.date);
   for (const m of played) {
+    m.noRatings = false;
+    S.mu = (muPrior * MU_WEIGHT + cumG) / (MU_WEIGHT + cumM); // målsnitt før kampen
+    m.pred = predict(m);            // out-of-sample: elo + att/def slik de var før kampen
+    bumpAd(m.home.name, m.away.name, m.home.score, m.away.score);
     cumG += m.home.score + m.away.score; cumM++;
-    if (m.date.getTime() < replayFrom) continue;
     const res = m.home.score > m.away.score ? 1 : m.home.score < m.away.score ? 0 : 0.5;
     const gd = Math.abs(m.home.score - m.away.score);
     const G = gd <= 1 ? 1 : gd === 2 ? 1.5 : (11 + gd) / 8;
     const we = eloExp(teamElo(m.home.name) + HFA() - teamElo(m.away.name));
-    const delta = K_REPLAY * G * (res - we);
+    const delta = REPLAY_K * G * (res - we);
     S.elo[m.home.name] = teamElo(m.home.name) + delta;
     S.elo[m.away.name] = teamElo(m.away.name) - delta;
   }
   S.mu = (muPrior * MU_WEIGHT + cumG) / (MU_WEIGHT + cumM);
 
-  // prediksjoner for kommende/live kamper. Målmarkedene forhåndsberegnes i
-  // riktig liga-kontekst her, så Bets-fanen virker også i «Alle ligaer».
+  // prediksjoner for kommende/live kamper med endelig tilstand. Målmarkedene
+  // forhåndsberegnes her, så Bets-fanen virker også i «Alle ligaer».
   for (const m of S.matches) {
-    m.noRatings = !hasRatings;
     if (m.state === "post") continue;
-    if (!hasRatings) { m.pred = null; m.gm = null; m.livePred = null; continue; }
+    m.noRatings = false;
     m.pred = predict(m);
     if (m.state === "pre") m.gm = goalMarkets(m);
     if (m.state === "in") m.livePred = predictLive(m);
@@ -596,6 +603,10 @@ function outcomeOf(m) {
   if (m.home.score < m.away.score) return "A";
   return "D";
 }
+function predOutcome(pred) {
+  const mx = Math.max(pred.pH, pred.pD, pred.pA);
+  return mx === pred.pH ? "H" : mx === pred.pA ? "A" : "D";
+}
 function fetchT(url, ms = 15000) {
   const ctrl = new AbortController();
   const t = setTimeout(() => ctrl.abort(), ms);
@@ -673,65 +684,30 @@ function renderTicker() {
   el.innerHTML = html;
 }
 
-/* Lokalt treff-/klink-regnskap fra pre-kamp-snapshots. Aggregerer på tvers av
-   ligaer i «Alle ligaer»-modus (snapshots lagres per liga, ikke under «all»). */
-function localPerf() {
-  const codes = S.lg === "all" ? [...new Set(S.matches.map((m) => m.lg))] : [S.lg];
-  const byId = {};
-  for (const m of S.matches) if (m.state === "post" && m.home.score != null) byId[m.id] = m;
-  let preds = 0, hits = 0, exact = 0;
-  for (const lg of codes) {
-    let st = {};
-    try { st = JSON.parse(localStorage.getItem("liga_preds_v2_" + lg) || "{}"); } catch { /* privat modus */ }
-    for (const id in st) {
-      const m = byId[id];
-      if (!m) continue;
-      const p = st[id];
-      preds++;
-      const mx = Math.max(p.pH, p.pD, p.pA);
-      const po = mx === p.pH ? "H" : mx === p.pA ? "A" : "D";
-      if (po === outcomeOf(m)) hits++;
-      if (p.top === m.home.score + "-" + m.away.score) exact++;
-    }
-  }
-  return { preds, hits, exact };
-}
-
 function renderStats() {
-  const played = S.matches.filter((m) => m.state === "post");
-  const goals = played.reduce((s, m) => s + (m.home.score || 0) + (m.away.score || 0), 0);
+  const playedAll = S.matches.filter((m) => m.state === "post" && m.home.score != null);
+  const goals = playedAll.reduce((s, m) => s + (m.home.score || 0) + (m.away.score || 0), 0);
   const today = S.matches.filter((m) => sameDay(m.date, new Date())).length;
   const total = S.matches.length;
 
-  // globalt regnskap (nightly commit, etterprøvbart) foretrekkes for treff;
-  // localStorage-snapshots som fallback, og eneste kilde for «klink».
-  const led = S.lg === "all"
-    ? (S.ledger?.leagues
-        ? Object.values(S.ledger.leagues).reduce((a, l) => ({ n: a.n + (l.agg?.n || 0), hits: a.hits + (l.agg?.hits || 0) }), { n: 0, hits: 0 })
-        : { n: 0, hits: 0 })
-    : (S.ledger?.leagues?.[S.lg]?.agg || { n: 0, hits: 0 });
-  const lp = localPerf();
+  // Treff/klink regnes fra hver spilte kamps m.pred — prediksjonen laget FØR
+  // kampen (out-of-sample chronologisk replay i applyElo), akkurat som VM-siden.
+  const scored = playedAll.filter((m) => m.pred);
+  const preds = scored.length;
+  const hits = scored.filter((m) => predOutcome(m.pred) === outcomeOf(m)).length;
+  const exact = scored.filter((m) => m.pred.top[0].k === m.home.score + "-" + m.away.score).length;
 
-  const treffPct = led.n ? led.hits / led.n : (lp.preds ? lp.hits / lp.preds : null);
-  const treffN = led.n || lp.preds;
-
-  // spilt-teller: i all-modus er totalen (alle sesongkamper) forvirrende — vis kun antall
   const spiltTile = S.lg === "all"
-    ? `<div class="stat"><div class="v">${played.length}</div><div class="k">Kamper spilt i sesongen</div></div>`
-    : `<div class="stat"><div class="v">${played.length}<small> / ${total}</small></div><div class="k">Kamper spilt</div></div>`;
+    ? `<div class="stat"><div class="v">${playedAll.length}</div><div class="k">Kamper spilt i sesongen</div></div>`
+    : `<div class="stat"><div class="v">${playedAll.length}<small> / ${total}</small></div><div class="k">Kamper spilt</div></div>`;
 
-  // treff/klink vises når de har data; ellers fylles baren med live-tall så den
-  // aldri ser tom ut (regnskapet ble nullstilt 23/8 og bygger seg opp igjen).
   let perfTiles;
-  if (treffPct != null || lp.preds > 0) {
-    const treffTile = treffPct != null
-      ? `<div class="stat hit"><div class="v">${Math.round(treffPct * 100)} %</div><div class="k">1X2-treff${S.lg === "all" ? " (globalt)" : ""} · ${treffN} målt</div></div>`
-      : `<div class="stat hit pending"><div class="v">—</div><div class="k">1X2-treff · kommer</div></div>`;
-    const klinkTile = lp.preds
-      ? `<div class="stat hit"><div class="v">${Math.round((lp.exact / lp.preds) * 100)} %</div><div class="k">Klink · ${lp.preds} målt</div></div>`
-      : `<div class="stat hit pending"><div class="v">—</div><div class="k">Klink · kommer</div></div>`;
-    perfTiles = treffTile + klinkTile;
+  if (preds > 0) {
+    perfTiles = `
+      <div class="stat hit"><div class="v">${Math.round((hits / preds) * 100)} %</div><div class="k">1X2-treff · ${preds} kamper</div></div>
+      <div class="stat hit"><div class="v">${Math.round((exact / preds) * 100)} %</div><div class="k">Klink (eksakt resultat)</div></div>`;
   } else {
+    // sesongen ikke i gang: fyll baren med live-tall så den aldri ser tom ut
     const liveN = S.matches.filter((m) => m.state === "in").length;
     const wk = Date.now() + 7 * 86400000;
     const soon = S.matches.filter((m) => m.state === "pre" && m.date <= wk).length;
