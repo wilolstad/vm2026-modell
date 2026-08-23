@@ -258,13 +258,23 @@ def ad_update(lg, evs, entry, prev_entry, window):
     return ad, sorted(done)
 
 
-def saudi_elo():
-    """Replay alle SPL-resultater fra ESPN siden 2023 -> Elo per lag."""
+# Historiske vinduer (3 sesonger) for ESPN-Elo-replay per liga.
+REPLAY_WINDOWS = {
+    "nor.1": ["20230101-20231215", "20240101-20241215", "20250101-20251215"],
+    "_default": ["20230801-20240701", "20240801-20250701", "20250801-20260701"],
+}
+
+
+def replay_elo(lg):
+    """Bygg klubb-Elo fra ESPN-resultater ved å replaye 3 sesonger kronologisk.
+    Selvforsynt (kun ESPN), og ratingene er keyet på ESPNs egne lagnavn — så
+    ingen navnematching mot en ekstern kilde trengs. K=25, HFA=65, start 1500,
+    margin-vekting som hovedmodellen. Erstatter den nå utilgjengelige ClubElo."""
     K, HFA, START = 25, 65, 1500.0
-    windows = ["20230801-20240701", "20240801-20250701", "20250801-20260701"]
+    windows = REPLAY_WINDOWS.get(lg, REPLAY_WINDOWS["_default"])
     matches = []
     for w in windows:
-        for ev in espn_events("ksa.1", w):
+        for ev in espn_events(lg, w):
             if ev["status"]["type"]["state"] != "post":
                 continue
             comp = sorted(ev["competitions"][0]["competitors"],
@@ -287,34 +297,15 @@ def saudi_elo():
         delta = K * g * (res - we)
         elo[hn] = eh + delta
         elo[an] = ea - delta
-    print(f"  Saudi: {len(matches)} kamper replayet, {len(elo)} lag")
+    print(f"  Elo-replay: {len(matches)} kamper, {len(elo)} lag")
     return elo
 
 
 def main():
     today = date.today()
-    # ClubElo dropper klubber uten kommende kamper fra dagsfila (typisk i
-    # sommerpausen) — slå derfor sammen gårsdagens snapshot med et eldre,
-    # der ferske ratinger vinner.
-    ratings_by_name = {}
-    for days_back in (45, 1):
-        try:
-            csv = fetch_text(f"http://api.clubelo.com/{today - timedelta(days=days_back)}")
-        except Exception as e:
-            print(f"  ADVARSEL: ClubElo {days_back} dager tilbake feilet: {e}")
-            continue
-        for line in csv.strip().splitlines()[1:]:
-            parts = line.split(",")
-            if len(parts) < 5:
-                continue
-            _, club, country, _, elo = parts[:5]
-            ratings_by_name[(country, club)] = float(elo)
-    by_country = {}
-    for (country, club), elo in ratings_by_name.items():
-        by_country.setdefault(country, []).append((club, elo))
-    print(f"ClubElo: {sum(len(v) for v in by_country.values())} klubber, "
-          f"{len(by_country)} land")
-
+    # Ratingene bygges nå selvforsynt fra ESPN-resultater (replay_elo) — ClubElo-
+    # API-et (api.clubelo.com) ble utilgjengelig aug. 2026. Ratingene er keyet på
+    # ESPNs lagnavn, så ingen ekstern navnematching trengs.
     prev_leagues = {}
     if OUT.exists():
         try:
@@ -325,14 +316,18 @@ def main():
     out = {"generated": today.isoformat(), "leagues": {}}
     ok = True
     degraded = []
+    all_ratings = {}  # samlet, for CL-oppslag på tvers av ligaer
     for lg, (name, country, mu_window) in LEAGUES.items():
         print(f"{name} ({lg}):")
         window = current_window(lg)
         evs = espn_events(lg, window)
         teams = teams_from_events(evs)
-        ratings = saudi_elo() if country is None else None
-        # terminliste ikke publisert ennå (typisk Saudi i sommerpausen):
-        # bruk lagene fra replay-ratingene så Elo-tabellen kan vises likevel
+        if country == "ALL":  # Champions League: lån ratinger fra klubbenes ligaer
+            ratings = dict(all_ratings)
+        else:
+            ratings = replay_elo(lg)
+            all_ratings.update(ratings)
+        # terminliste ikke publisert ennå: bruk lagene fra replay-ratingene
         if not teams and ratings:
             teams = {n: {"short": n, "abbr": n[:3].upper()} for n in ratings}
         entry = {"name": name, "teams": {}, "meta": {}}
@@ -342,25 +337,18 @@ def main():
             entry["mu"] = mu
             print(f"  mu = {mu} ({mu_n} kamper forrige sesong)")
 
-        if country == "ALL":  # Champions League: match på tvers av alle land
-            rows = [r for rs in by_country.values() for r in rs]
-        else:
-            rows = by_country.get(country, []) if country else None
         matched, missing = 0, []
         for display, meta in teams.items():
-            if ratings is not None:
-                elo = ratings.get(display)
-            else:
-                elo = match_elo(display, rows)
+            elo = ratings.get(display)
             if elo is not None:
                 entry["teams"][display] = round(elo, 1)
                 matched += 1
             else:
                 missing.append(display)
             entry["meta"][display] = meta
-        print(f"  {matched}/{len(teams)} lag matchet" +
-              (f" — MANGLER: {missing}" if missing else ""))
-        # CL-feltet har småklubber ClubElo mangler — ikke la det velte bygget
+        print(f"  {matched}/{len(teams)} lag med rating" +
+              (f" — uten (fallback): {missing}" if missing else ""))
+        # CL låner på tvers og har alltid noen umatchede — ikke velt bygget på det
         if teams and matched < len(teams) * 0.8 and country != "ALL":
             ok = False
 
