@@ -396,6 +396,10 @@ function applyElo() {
   S.eloSnap = {};
   S.ad = entry?.ad || {};
   S.mu = entry?.mu ?? LEAGUES[cfgLg()].muFb;
+  // Har ligaen ratinger i det hele tatt? Uten dem får alle lag samme fallback
+  // og prediksjonene blir ren støy — da er det ærligere å ikke vise dem.
+  const hasRatings = !!(entry && entry.teams && Object.keys(entry.teams).length);
+  S.ratingsOk = hasRatings;
   if (entry) {
     for (const [name, elo] of Object.entries(entry.teams)) {
       S.elo[name] = elo;
@@ -438,7 +442,9 @@ function applyElo() {
   // prediksjoner for kommende/live kamper. Målmarkedene forhåndsberegnes i
   // riktig liga-kontekst her, så Bets-fanen virker også i «Alle ligaer».
   for (const m of S.matches) {
+    m.noRatings = !hasRatings;
     if (m.state === "post") continue;
+    if (!hasRatings) { m.pred = null; m.gm = null; m.livePred = null; continue; }
     m.pred = predict(m);
     if (m.state === "pre") m.gm = goalMarkets(m);
     if (m.state === "in") m.livePred = predictLive(m);
@@ -497,7 +503,7 @@ function samplePoisson(lam) {
 
 async function simSeason(runs) {
   const mySeq = S.seq;
-  if (S.lg === "all" || LEAGUES[S.lg].ucl) return null; // liga-spesifikk
+  if (S.lg === "all" || LEAGUES[S.lg].ucl || !S.ratingsOk) return null; // liga-spesifikk
   const base = leagueTable();
   if (base.length < 2) return null;
   const names = base.map((r) => r.team.name);
@@ -888,6 +894,7 @@ function simHistChartHTML() {
 
 function simTabHTML() {
   if (S.lg === "all") return "";
+  if (!S.ratingsOk) return `<div class="empty">Sesongsimuleringen trenger klubb-ratinger — de er midlertidig utilgjengelige (datakilden svarer ikke). Prøv igjen senere.</div>`;
   if (LEAGUES[S.lg].ucl) {
     return `<div class="empty">Ligafase-tabellen finner du under «Tabell». Sesongsimulering for Champions League krever sluttspillmodell — den kommer når ligafasen er i gang.</div>`;
   }
@@ -1108,6 +1115,12 @@ function renderContent() {
     return;
   }
   let html = "", lastDay = "";
+  // advarsel når ratinger mangler for noen av kampene som vises
+  const missingLgs = [...new Set(ms.filter((m) => m.noRatings).map((m) => m.lg))];
+  if (missingLgs.length) {
+    const names = missingLgs.map((c) => LEAGUES[c]?.name || c).join(", ");
+    html += `<div class="rating-warn">⚠️ Ratingene for <b>${esc(names)}</b> er midlertidig utilgjengelige (datakilden svarer ikke) — kampene vises uten prediksjon til de er oppdatert.</div>`;
+  }
   let cards = [];
   const flush = () => {
     if (cards.length) html += `<div class="match-grid">${cards.join("")}</div>`;
@@ -1192,8 +1205,8 @@ function openModal(m) {
   }
 
   let marketsHtml = "";
-  if (m.state === "pre") {
-    const mk = goalMarkets(m);
+  if (m.state === "pre" && !m.noRatings) {
+    const mk = m.gm || goalMarkets(m);
     marketsHtml = `
       <div class="m-sec">Målmarkeder</div>
       <div class="mkt-row"><span>Over 2,5 mål</span><b>${pct(mk.pO25)}</b><span>Under</span><b>${pct(1 - mk.pO25)}</b></div>
@@ -1351,7 +1364,7 @@ async function load() {
       if (!res.ok) throw new Error("HTTP " + res.status);
       const data = await res.json();
       if (S.seq !== mySeq) return; // brukeren byttet liga mens vi ventet
-      S.matches = (data.events || []).map(parseEvent);
+      S.matches = (data.events || []).map((ev) => ({ ...parseEvent(ev), lg: S.lg }));
 
       await Promise.all(S.matches.filter((m) => m.state === "in").map((m) => fetchSummary(m.id)));
       if (S.seq !== mySeq) return;

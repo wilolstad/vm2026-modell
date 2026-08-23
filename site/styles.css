@@ -694,3 +694,12 @@ body {
   border-color: var(--volt-dim);
 }
 .sim-table .xpts { color: var(--ink); font-weight: 700; }
+
+/* advarsel når ratingene mangler (datakilde nede) */
+.rating-warn {
+  background: rgba(255, 210, 63, 0.10);
+  border: 1px solid rgba(255, 210, 63, 0.4);
+  border-radius: 8px; padding: 12px 16px; margin-bottom: 18px;
+  font-size: 0.9rem; color: var(--ink-dim); line-height: 1.5;
+}
+.rating-warn b { color: var(--market); }

@@ -111,14 +111,20 @@ ALIASES = {
 }
 
 
+# ESPN begynte aug. 2026 å svare 403 på forespørsler uten Accept-header, og
+# blokkerer dessuten enkelte egendefinerte/spoofede User-Agents. Tomt UA-felt
+# (urllibs default) + «Accept: */*» slipper gjennom. Ikke sett en fancy UA.
+FETCH_HEADERS = {"Accept": "*/*"}
+
+
 def fetch_json(url, timeout=30):
-    req = urllib.request.Request(url, headers={"User-Agent": "liga-build/1.0"})
+    req = urllib.request.Request(url, headers=FETCH_HEADERS)
     with urllib.request.urlopen(req, timeout=timeout) as r:
         return json.loads(r.read().decode())
 
 
 def fetch_text(url, timeout=30):
-    req = urllib.request.Request(url, headers={"User-Agent": "liga-build/1.0"})
+    req = urllib.request.Request(url, headers=FETCH_HEADERS)
     with urllib.request.urlopen(req, timeout=timeout) as r:
         return r.read().decode()
 
@@ -318,6 +324,7 @@ def main():
 
     out = {"generated": today.isoformat(), "leagues": {}}
     ok = True
+    degraded = []
     for lg, (name, country, mu_window) in LEAGUES.items():
         print(f"{name} ({lg}):")
         window = current_window(lg)
@@ -357,18 +364,37 @@ def main():
         if teams and matched < len(teams) * 0.8 and country != "ALL":
             ok = False
 
+        # ROBUSTHET: ga hentingen 0 ratinger (ESPN/ClubElo nede), men forrige fil
+        # hadde gode ratinger for ligaen — behold dem heller enn å skrive tomt.
+        prev = prev_leagues.get(lg)
+        if not entry["teams"] and prev and prev.get("teams"):
+            print(f"  ADVARSEL: 0 ratinger nå — beholder {len(prev['teams'])} fra forrige bygg")
+            entry["teams"] = prev["teams"]
+            if prev.get("mu") and "mu" not in entry:
+                entry["mu"] = prev["mu"]
+            if not entry["meta"]:
+                entry["meta"] = prev.get("meta", {})
+            degraded.append(lg)
+
         entry["adWindow"] = window
-        entry["ad"], entry["adDone"] = ad_update(lg, evs, entry, prev_leagues.get(lg), window)
-        n_new = len(entry["adDone"]) - len(prev_leagues.get(lg, {}).get("adDone", [])
-                                          if prev_leagues.get(lg, {}).get("adWindow") == window else [])
+        entry["ad"], entry["adDone"] = ad_update(lg, evs, entry, prev, window)
+        n_new = len(entry["adDone"]) - len(prev.get("adDone", [])
+                                          if prev and prev.get("adWindow") == window else [])
         print(f"  att/def: {len(entry['ad'])} lag, {n_new} nye kamper regnskapsført")
         out["leagues"][lg] = entry
 
-    if not out["leagues"] or not ok:
-        print("FEIL: for dårlig dekning — beholder eksisterende fil")
+    total_teams = sum(len(e.get("teams", {})) for e in out["leagues"].values())
+    # Skriv ALDRI en fil uten ratinger — da beholder workflowen den committede.
+    if not out["leagues"] or not total_teams:
+        print(f"FEIL: 0 ratinger totalt (ESPN/ClubElo utilgjengelig) — beholder eksisterende fil")
         sys.exit(1)
+    if not ok:
+        print("FEIL: for dårlig lagdekning — beholder eksisterende fil")
+        sys.exit(1)
+    if degraded:
+        print(f"ADVARSEL: brukte forrige bygg for {degraded} (henting feilet der)")
     OUT.write_text(json.dumps(out, ensure_ascii=False, indent=1))
-    print(f"Skrev {OUT}")
+    print(f"Skrev {OUT} ({total_teams} lag totalt)")
 
 
 if __name__ == "__main__":
