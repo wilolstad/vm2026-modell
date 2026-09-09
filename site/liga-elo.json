@@ -1,5 +1,5 @@
 {
- "generated": "2026-09-08",
+ "generated": "2026-09-09",
  "leagues": {
   "nor.1": {
    "name": "Eliteserien",
@@ -605,23 +605,23 @@
   "esp.1": {
    "name": "LaLiga",
    "teams": {
-    "Alavés": 1471.8,
-    "Getafe": 1512.1,
-    "Sevilla": 1447.1,
-    "Rayo Vallecano": 1554.8,
-    "Villarreal": 1645.8,
-    "Espanyol": 1464.9,
-    "Levante": 1503.3,
-    "Elche": 1484.1,
-    "Atlético Madrid": 1631.7,
-    "Real Betis": 1605.7,
-    "Real Sociedad": 1502.5,
-    "Athletic Club": 1495.9,
-    "Valencia": 1554.3,
-    "Celta Vigo": 1548.5,
-    "Real Madrid": 1768.2,
-    "Barcelona": 1827.4,
-    "Osasuna": 1473.8
+    "Alavés": 1462.2,
+    "Getafe": 1495.0,
+    "Sevilla": 1441.3,
+    "Rayo Vallecano": 1527.6,
+    "Villarreal": 1615.2,
+    "Espanyol": 1455.9,
+    "Levante": 1492.0,
+    "Elche": 1472.4,
+    "Atlético Madrid": 1602.8,
+    "Real Betis": 1583.0,
+    "Real Sociedad": 1507.3,
+    "Athletic Club": 1471.4,
+    "Valencia": 1530.8,
+    "Celta Vigo": 1523.2,
+    "Real Madrid": 1750.9,
+    "Barcelona": 1781.6,
+    "Osasuna": 1444.6
    },
    "meta": {
     "Alavés": {
@@ -1718,10 +1718,10 @@
      9.2
     ],
     "Al Hazem": [
-     5.0,
-     7.73,
      6.0,
-     7.32
+     9.1,
+     6.0,
+     8.96
     ],
     "Al Diriyah": [
      5.0,
@@ -1730,10 +1730,10 @@
      10.26
     ],
     "Al Ahli": [
-     11.0,
-     10.78,
-     6.0,
-     4.27
+     13.0,
+     12.24,
+     9.0,
+     5.82
     ],
     "Al Shabab": [
      5.0,
@@ -1742,10 +1742,10 @@
      8.48
     ],
     "Al Qadsiah": [
-     10.0,
-     10.99,
-     3.0,
-     4.06
+     13.0,
+     12.54,
+     5.0,
+     5.52
     ],
     "Neom SC": [
      9.0,
@@ -1754,10 +1754,10 @@
      9.43
     ],
     "Al Fayha": [
-     6.0,
-     6.57,
-     9.0,
-     8.48
+     7.0,
+     7.59,
+     11.0,
+     10.47
     ],
     "Al Hilal": [
      17.0,
@@ -1773,9 +1773,9 @@
     ],
     "Al Ettifaq": [
      8.0,
-     8.34,
+     10.38,
      8.0,
-     6.71
+     7.68
     ],
     "Al Riyadh": [
      6.0,
@@ -1785,9 +1785,9 @@
     ],
     "Al Taawoun": [
      3.0,
-     8.03,
-     5.0,
-     7.02
+     9.67,
+     6.0,
+     8.39
     ],
     "Al Khaleej": [
      2.0,
@@ -1808,10 +1808,10 @@
      9.0
     ],
     "Al Ittihad": [
-     7.0,
-     7.98,
-     4.0,
-     7.07
+     9.0,
+     9.97,
+     5.0,
+     8.09
     ],
     "Al Kholood": [
      10.0,
@@ -1821,12 +1821,16 @@
     ],
     "Al Faisaly": [
      0.0,
-     1.31,
+     2.28,
      0.0,
-     1.7
+     3.74
     ]
    },
    "adDone": [
+    "401900360",
+    "401900361",
+    "401900362",
+    "401900363",
     "401900364",
     "401900365",
     "401900366",
@@ -1881,17 +1885,17 @@
    "teams": {
     "Aston Villa": 1601.7,
     "Borussia Dortmund": 1714.6,
-    "Villarreal": 1645.8,
+    "Villarreal": 1615.2,
     "FC Porto": 1791.4,
     "Manchester City": 1744.9,
-    "Real Betis": 1605.7,
-    "Real Madrid": 1768.2,
+    "Real Betis": 1583.0,
+    "Real Madrid": 1750.9,
     "Internazionale": 1805.7,
-    "Barcelona": 1827.4,
+    "Barcelona": 1781.6,
     "VfB Stuttgart": 1649.2,
     "Viking FK": 1767.2,
     "Liverpool": 1622.3,
-    "Atlético Madrid": 1631.7,
+    "Atlético Madrid": 1602.8,
     "Napoli": 1678.2,
     "Arsenal": 1775.2,
     "Sporting CP": 1854.8,
@@ -2050,8 +2054,88 @@
    },
    "mu": 3.466,
    "adWindow": "20260701-20270630",
-   "ad": {},
-   "adDone": []
+   "ad": {
+    "Club Brugge": [
+     2.0,
+     1.74,
+     3.0,
+     1.73
+    ],
+    "Aston Villa": [
+     3.0,
+     1.73,
+     2.0,
+     1.74
+    ],
+    "AEK Athens": [
+     1.0,
+     1.87,
+     0.0,
+     1.6
+    ],
+    "LASK Linz": [
+     0.0,
+     1.6,
+     1.0,
+     1.87
+    ],
+    "FC Porto": [
+     0.0,
+     2.0,
+     2.0,
+     1.46
+    ],
+    "Manchester City": [
+     2.0,
+     1.46,
+     0.0,
+     2.0
+    ],
+    "Borussia Dortmund": [
+     3.0,
+     2.16,
+     2.0,
+     1.31
+    ],
+    "Villarreal": [
+     2.0,
+     1.31,
+     3.0,
+     2.16
+    ],
+    "Lille": [
+     2.0,
+     1.79,
+     3.0,
+     1.67
+    ],
+    "Real Betis": [
+     3.0,
+     1.67,
+     2.0,
+     1.79
+    ],
+    "Real Madrid": [
+     2.0,
+     1.7,
+     1.0,
+     1.76
+    ],
+    "Internazionale": [
+     1.0,
+     1.76,
+     2.0,
+     1.7
+    ]
+   },
+   "adDone": [
+    "401915425",
+    "401915426",
+    "401915449",
+    "401915450",
+    "401915451",
+    "401915452"
+   ]
   }
  }
 }
