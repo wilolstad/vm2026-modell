@@ -69,13 +69,32 @@ const MU_WEIGHT = 60;   // pseudo-kamper på forrige sesongs målsnitt
 /* Empirisk måltiming i klubbfotball per 15-min-bolk (inkl. tilleggstid) */
 const GOAL_TIMING = [0.12, 0.12, 0.16, 0.16, 0.16, 0.28];
 
-/* Sesongvindu: Eliteserien er vår->høst, resten høst->vår (ny sesong fra juli) */
-function seasonWindow(lg) {
+/* Sesongen: Eliteserien er vår->høst (ett kalenderår), resten høst->vår.
+   ESPN sluttet sep. 2026 å godta dato-INTERVALL (dates=start-slutt -> 400);
+   nå hentes hele kalenderår (dates=YYYY&limit=1000) og filtreres til vinduet. */
+function seasonSpan(lg) {
   const now = new Date();
   const y = now.getFullYear();
-  if (lg === "nor.1") return `${y}0201-${y}1220`;
+  if (lg === "nor.1") return { years: [y], from: `${y}-02-01`, to: `${y}-12-20` };
   const start = now.getMonth() >= 6 ? y : y - 1;
-  return `${start}0701-${start + 1}0630`;
+  return { years: [start, start + 1], from: `${start}-07-01`, to: `${start + 1}-06-30` };
+}
+
+/* Hent alle kamper i en ligas sesong: ett kall per kalenderår (ESPN godtar
+   ikke lenger intervaller), slå sammen, dedup på id, filtrer til vinduet. */
+async function fetchSeasonEvents(lg, timeout = 20000) {
+  const span = seasonSpan(lg);
+  const byId = {};
+  for (const yr of span.years) {
+    const res = await fetchT(ESPN_BASE + lg + "/scoreboard?dates=" + yr + "&limit=1000", timeout);
+    if (!res.ok) continue;
+    const data = await res.json();
+    for (const ev of data.events || []) {
+      const d = (ev.date || "").slice(0, 10);
+      if (d >= span.from && d <= span.to) byId[ev.id] = ev;
+    }
+  }
+  return Object.values(byId);
 }
 
 /* ---------- state ---------- */
@@ -1333,10 +1352,8 @@ async function loadAllLeagues(mySeq) {
   const codes = Object.keys(LEAGUES);
   const results = await Promise.all(codes.map(async (lg) => {
     try {
-      const res = await fetchT(ESPN_BASE + lg + "/scoreboard?dates=" + seasonWindow(lg) + "&limit=500", 20000);
-      if (!res.ok) return [];
-      const data = await res.json();
-      return (data.events || []).map((ev) => ({ ...parseEvent(ev), lg }));
+      const evs = await fetchSeasonEvents(lg);
+      return evs.map((ev) => ({ ...parseEvent(ev), lg }));
     } catch { return []; }
   }));
   if (S.seq !== mySeq) return null;
@@ -1371,12 +1388,9 @@ async function load() {
       S.matches = merged;
       S.sim = null;
     } else {
-      const url = ESPN_BASE + S.lg + "/scoreboard?dates=" + seasonWindow(S.lg) + "&limit=500";
-      const res = await fetchT(url, 20000);
-      if (!res.ok) throw new Error("HTTP " + res.status);
-      const data = await res.json();
+      const evs = await fetchSeasonEvents(S.lg);
       if (S.seq !== mySeq) return; // brukeren byttet liga mens vi ventet
-      S.matches = (data.events || []).map((ev) => ({ ...parseEvent(ev), lg: S.lg }));
+      S.matches = evs.map((ev) => ({ ...parseEvent(ev), lg: S.lg }));
 
       await Promise.all(S.matches.filter((m) => m.state === "in").map((m) => fetchSummary(m.id)));
       if (S.seq !== mySeq) return;

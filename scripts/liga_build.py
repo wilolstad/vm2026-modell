@@ -178,12 +178,28 @@ def match_elo(display, country_rows):
 
 
 def espn_events(lg, window):
-    try:
-        d = fetch_json(ESPN.format(lg=lg, win=window))
-        return d.get("events", [])
-    except Exception as e:
-        print(f"  ADVARSEL: klarte ikke hente {lg} {window}: {e}")
-        return []
+    """Hent kamper i et 'YYYYMMDD-YYYYMMDD'-vindu. ESPN sluttet sep. 2026 å
+    godta dato-INTERVALLER (400 Bad Request); nå hentes hvert kalenderår
+    (dates=YYYY&limit=1000) og filtreres ned til vinduet, dedup på id."""
+    base = "https://site.api.espn.com/apis/site/v2/sports/soccer/{lg}/scoreboard?dates={q}&limit=1000"
+    if "-" in window:
+        start, end = window.split("-")
+    else:  # enkeltdato — hent den dagen direkte
+        start = end = window
+    s_iso = f"{start[:4]}-{start[4:6]}-{start[6:8]}"
+    e_iso = f"{end[:4]}-{end[4:6]}-{end[6:8]}"
+    by_id = {}
+    for yr in range(int(start[:4]), int(end[:4]) + 1):
+        try:
+            d = fetch_json(base.format(lg=lg, q=yr))
+        except Exception as e:
+            print(f"  ADVARSEL: klarte ikke hente {lg} {yr}: {e}")
+            continue
+        for ev in d.get("events", []):
+            iso = (ev.get("date") or "")[:10]
+            if s_iso <= iso <= e_iso:
+                by_id[ev["id"]] = ev
+    return list(by_id.values())
 
 
 def season_mu(lg, window):
