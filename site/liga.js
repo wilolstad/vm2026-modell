@@ -19,6 +19,7 @@ const LEAGUES = {
   "por.1": { name: "Liga Portugal",    flagg: "🇵🇹", relDirect: 2, playoff: true,  muFb: 2.7, hfa: 65 },
   "ksa.1": { name: "Saudi Pro League", flagg: "🇸🇦", relDirect: 3, playoff: false, muFb: 3.0, hfa: 30 },
   "uefa.champions": { name: "Champions League", flagg: "🏆", relDirect: 12, playoff: false, muFb: 3.4, hfa: 45, ucl: true },
+  "uefa.nations": { name: "Nations League", flagg: "🇪🇺", relDirect: 0, playoff: false, muFb: 2.6, hfa: 60, intl: true },
 };
 
 const SIM_RUNS = 10000;
@@ -529,7 +530,7 @@ function samplePoisson(lam) {
 
 async function simSeason(runs) {
   const mySeq = S.seq;
-  if (S.lg === "all" || LEAGUES[S.lg].ucl || !S.ratingsOk) return null; // liga-spesifikk
+  if (S.lg === "all" || LEAGUES[S.lg].ucl || LEAGUES[S.lg].intl || !S.ratingsOk) return null; // liga-spesifikk
   const base = leagueTable();
   if (base.length < 2) return null;
   const names = base.map((r) => r.team.name);
@@ -837,6 +838,7 @@ function formDots(name) {
 
 function tableHTML() {
   if (S.lg === "all") return "";
+  if (LEAGUES[S.lg].intl) return `<div class="empty">Nations League spilles i fire divisjoner (A–D) med egne grupper — én samlet serietabell gir ikke mening. Se kampene og prediksjonene under «Kommende» og «Resultater».</div>`;
   const rows = leagueTable();
   if (!rows.length) return `<div class="empty">Ingen tabell ennå.</div>`;
   const cfg = LEAGUES[S.lg];
@@ -925,6 +927,7 @@ function simHistChartHTML() {
 
 function simTabHTML() {
   if (S.lg === "all") return "";
+  if (LEAGUES[S.lg].intl) return `<div class="empty">Nations League avgjøres i fire divisjoner med gruppespill og sluttspill — sesongsimulering (mester/nedrykk) passer ikke formatet. Kampprediksjonene finner du under «Kommende».</div>`;
   if (!S.ratingsOk) return `<div class="empty">Sesongsimuleringen trenger klubb-ratinger — de er midlertidig utilgjengelige (datakilden svarer ikke). Prøv igjen senere.</div>`;
   if (LEAGUES[S.lg].ucl) {
     return `<div class="empty">Ligafase-tabellen finner du under «Tabell». Sesongsimulering for Champions League krever sluttspillmodell — den kommer når ligafasen er i gang.</div>`;

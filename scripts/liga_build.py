@@ -34,6 +34,7 @@ LEAGUES = {
     "por.1": ("Liga Portugal", "POR", "20250801-20260601"),
     "ksa.1": ("Saudi Pro League", None, "20250801-20260601"),
     "uefa.champions": ("Champions League", "ALL", "20250801-20260601"),
+    "uefa.nations": ("Nations League", "NATIONAL", "20240801-20250701"),
 }
 
 # Modellparametre (backtestet i backtest.py — se README-eksperimentloggen).
@@ -43,7 +44,7 @@ PARAMS = {
     "adC": 80, "adG": 0.5,
     "hfa": {"nor.1": 45, "eng.1": 30, "esp.1": 65, "ger.1": 10,
             "ita.1": 45, "por.1": 65, "ksa.1": 30,
-            "uefa.champions": 45},  # ikke backtestet enda — pooled-nivå
+            "uefa.champions": 45, "uefa.nations": 60},  # ikke backtestet — anslag
 }
 
 
@@ -317,6 +318,48 @@ def replay_elo(lg):
     return elo
 
 
+# Internasjonale ESPN-koder for landslags-Elo (Nations League m.m.). Landslag
+# spiller for få NL-kamper alene, så vi bygger ratingene fra alle relevante
+# landskamper: VM-kvalik + Nations League + EM + treningskamper.
+NATIONAL_CODES = ["fifa.worldq.uefa", "uefa.nations", "uefa.euro", "fifa.friendly"]
+_NATIONAL_CACHE = {}
+
+
+def national_elo():
+    """Bygg landslags-Elo ved å replaye alle relevante landskamper 2023-2026
+    kronologisk på tvers av turneringene. K=30, HFA=65, start 1500."""
+    if _NATIONAL_CACHE:
+        return _NATIONAL_CACHE
+    K, HFA, START = 30, 65, 1500.0
+    matches = []
+    for code in NATIONAL_CODES:
+        for ev in espn_events(code, "20230101-20261231"):
+            if ev["status"]["type"]["state"] != "post":
+                continue
+            comp = sorted(ev["competitions"][0]["competitors"],
+                          key=lambda c: 0 if c["homeAway"] == "home" else 1)
+            try:
+                h, a = comp
+                matches.append((ev["date"], h["team"]["displayName"], a["team"]["displayName"],
+                                int(h["score"]), int(a["score"])))
+            except (KeyError, ValueError, TypeError):
+                continue
+    matches.sort()
+    elo = {}
+    for _, hn, an, hs, gs in matches:
+        eh, ea = elo.get(hn, START), elo.get(an, START)
+        we = 1 / (1 + 10 ** (-(eh + HFA - ea) / 400))
+        res = 1.0 if hs > gs else 0.0 if hs < gs else 0.5
+        gd = abs(hs - gs)
+        g = 1 if gd <= 1 else 1.5 if gd == 2 else (11 + gd) / 8
+        delta = K * g * (res - we)
+        elo[hn] = eh + delta
+        elo[an] = ea - delta
+    print(f"  Landslags-Elo: {len(matches)} landskamper, {len(elo)} lag")
+    _NATIONAL_CACHE.update(elo)
+    return elo
+
+
 def main():
     today = date.today()
     # Ratingene bygges nå selvforsynt fra ESPN-resultater (replay_elo) — ClubElo-
@@ -340,6 +383,8 @@ def main():
         teams = teams_from_events(evs)
         if country == "ALL":  # Champions League: lån ratinger fra klubbenes ligaer
             ratings = dict(all_ratings)
+        elif country == "NATIONAL":  # Nations League: landslags-Elo
+            ratings = national_elo()
         else:
             ratings = replay_elo(lg)
             all_ratings.update(ratings)
@@ -364,8 +409,8 @@ def main():
             entry["meta"][display] = meta
         print(f"  {matched}/{len(teams)} lag med rating" +
               (f" — uten (fallback): {missing}" if missing else ""))
-        # CL låner på tvers og har alltid noen umatchede — ikke velt bygget på det
-        if teams and matched < len(teams) * 0.8 and country != "ALL":
+        # CL/NL har alltid noen umatchede lag — ikke velt bygget på det
+        if teams and matched < len(teams) * 0.8 and country not in ("ALL", "NATIONAL"):
             ok = False
 
         # ROBUSTHET: ga hentingen 0 ratinger (ESPN/ClubElo nede), men forrige fil

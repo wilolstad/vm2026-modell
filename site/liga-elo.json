@@ -2426,6 +2426,287 @@
     "401915451",
     "401915452"
    ]
+  },
+  "uefa.nations": {
+   "name": "Nations League",
+   "teams": {
+    "Andorra": 1310.8,
+    "Malta": 1371.0,
+    "Austria": 1643.7,
+    "Israel": 1516.2,
+    "Kosovo": 1603.3,
+    "Republic of Ireland": 1544.1,
+    "Liechtenstein": 1239.1,
+    "Lithuania": 1364.9,
+    "Netherlands": 1641.8,
+    "Germany": 1668.4,
+    "Norway": 1698.7,
+    "Denmark": 1627.3,
+    "Portugal": 1664.3,
+    "Wales": 1518.7,
+    "Serbia": 1491.8,
+    "Greece": 1527.3,
+    "Armenia": 1343.6,
+    "Latvia": 1405.1,
+    "Georgia": 1530.3,
+    "Northern Ireland": 1513.8,
+    "Hungary": 1504.3,
+    "Ukraine": 1533.1,
+    "Italy": 1637.7,
+    "Belgium": 1657.7,
+    "Montenegro": 1439.2,
+    "Cyprus": 1425.5,
+    "Poland": 1519.6,
+    "Bosnia-Herzegovina": 1528.1,
+    "Sweden": 1565.1,
+    "Romania": 1540.1,
+    "Türkiye": 1670.5,
+    "France": 1689.6,
+    "Slovenia": 1511.5,
+    "Scotland": 1541.9,
+    "Bulgaria": 1443.3,
+    "Luxembourg": 1406.8,
+    "Faroe Islands": 1507.7,
+    "Kazakhstan": 1412.1,
+    "Iceland": 1439.3,
+    "Estonia": 1387.3,
+    "San Marino": 1244.5,
+    "Finland": 1408.8,
+    "Albania": 1473.5,
+    "Belarus": 1480.0,
+    "Czechia": 1606.5,
+    "Croatia": 1624.7,
+    "England": 1698.3,
+    "Spain": 1761.7,
+    "North Macedonia": 1508.3,
+    "Switzerland": 1647.6,
+    "Slovakia": 1529.0,
+    "Moldova": 1340.9,
+    "Azerbaijan": 1328.5,
+    "Gibraltar": 1353.9
+   },
+   "meta": {
+    "Andorra": {
+     "short": "Andorra",
+     "abbr": "AND"
+    },
+    "Malta": {
+     "short": "Malta",
+     "abbr": "MLT"
+    },
+    "Austria": {
+     "short": "Austria",
+     "abbr": "AUT"
+    },
+    "Israel": {
+     "short": "Israel",
+     "abbr": "ISR"
+    },
+    "Kosovo": {
+     "short": "Kosovo",
+     "abbr": "KOS"
+    },
+    "Republic of Ireland": {
+     "short": "Rep Ireland",
+     "abbr": "IRL"
+    },
+    "Liechtenstein": {
+     "short": "Liechtenstein",
+     "abbr": "LIE"
+    },
+    "Lithuania": {
+     "short": "Lithuania",
+     "abbr": "LTU"
+    },
+    "Netherlands": {
+     "short": "Netherlands",
+     "abbr": "NED"
+    },
+    "Germany": {
+     "short": "Germany",
+     "abbr": "GER"
+    },
+    "Norway": {
+     "short": "Norway",
+     "abbr": "NOR"
+    },
+    "Denmark": {
+     "short": "Denmark",
+     "abbr": "DEN"
+    },
+    "Portugal": {
+     "short": "Portugal",
+     "abbr": "POR"
+    },
+    "Wales": {
+     "short": "Wales",
+     "abbr": "WAL"
+    },
+    "Serbia": {
+     "short": "Serbia",
+     "abbr": "SRB"
+    },
+    "Greece": {
+     "short": "Greece",
+     "abbr": "GRE"
+    },
+    "Armenia": {
+     "short": "Armenia",
+     "abbr": "ARM"
+    },
+    "Latvia": {
+     "short": "Latvia",
+     "abbr": "LVA"
+    },
+    "Georgia": {
+     "short": "Georgia",
+     "abbr": "GEO"
+    },
+    "Northern Ireland": {
+     "short": "N Ireland",
+     "abbr": "NIR"
+    },
+    "Hungary": {
+     "short": "Hungary",
+     "abbr": "HUN"
+    },
+    "Ukraine": {
+     "short": "Ukraine",
+     "abbr": "UKR"
+    },
+    "Italy": {
+     "short": "Italy",
+     "abbr": "ITA"
+    },
+    "Belgium": {
+     "short": "Belgium",
+     "abbr": "BEL"
+    },
+    "Montenegro": {
+     "short": "Montenegro",
+     "abbr": "MNE"
+    },
+    "Cyprus": {
+     "short": "Cyprus",
+     "abbr": "CYP"
+    },
+    "Poland": {
+     "short": "Poland",
+     "abbr": "POL"
+    },
+    "Bosnia-Herzegovina": {
+     "short": "Bosnia-Herz",
+     "abbr": "BIH"
+    },
+    "Sweden": {
+     "short": "Sweden",
+     "abbr": "SWE"
+    },
+    "Romania": {
+     "short": "Romania",
+     "abbr": "ROU"
+    },
+    "Türkiye": {
+     "short": "Türkiye",
+     "abbr": "TUR"
+    },
+    "France": {
+     "short": "France",
+     "abbr": "FRA"
+    },
+    "Slovenia": {
+     "short": "Slovenia",
+     "abbr": "SVN"
+    },
+    "Scotland": {
+     "short": "Scotland",
+     "abbr": "SCO"
+    },
+    "Bulgaria": {
+     "short": "Bulgaria",
+     "abbr": "BUL"
+    },
+    "Luxembourg": {
+     "short": "Luxembourg",
+     "abbr": "LUX"
+    },
+    "Faroe Islands": {
+     "short": "Faroe Islands",
+     "abbr": "FRO"
+    },
+    "Kazakhstan": {
+     "short": "Kazakhstan",
+     "abbr": "KAZ"
+    },
+    "Iceland": {
+     "short": "Iceland",
+     "abbr": "ISL"
+    },
+    "Estonia": {
+     "short": "Estonia",
+     "abbr": "EST"
+    },
+    "San Marino": {
+     "short": "San Marino",
+     "abbr": "SMR"
+    },
+    "Finland": {
+     "short": "Finland",
+     "abbr": "FIN"
+    },
+    "Albania": {
+     "short": "Albania",
+     "abbr": "ALB"
+    },
+    "Belarus": {
+     "short": "Belarus",
+     "abbr": "BLR"
+    },
+    "Czechia": {
+     "short": "Czechia",
+     "abbr": "CZE"
+    },
+    "Croatia": {
+     "short": "Croatia",
+     "abbr": "CRO"
+    },
+    "England": {
+     "short": "England",
+     "abbr": "ENG"
+    },
+    "Spain": {
+     "short": "Spain",
+     "abbr": "ESP"
+    },
+    "North Macedonia": {
+     "short": "North Macedonia",
+     "abbr": "MKD"
+    },
+    "Switzerland": {
+     "short": "Switzerland",
+     "abbr": "SUI"
+    },
+    "Slovakia": {
+     "short": "Slovakia",
+     "abbr": "SVK"
+    },
+    "Moldova": {
+     "short": "Moldova",
+     "abbr": "MDA"
+    },
+    "Azerbaijan": {
+     "short": "Azerbaijan",
+     "abbr": "AZE"
+    },
+    "Gibraltar": {
+     "short": "Gibraltar",
+     "abbr": "GIB"
+    }
+   },
+   "mu": 2.723,
+   "adWindow": "20260701-20270630",
+   "ad": {},
+   "adDone": []
   }
  }
 }
