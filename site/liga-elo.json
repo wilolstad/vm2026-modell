@@ -1,5 +1,5 @@
 {
- "generated": "2026-09-24",
+ "generated": "2026-09-25",
  "leagues": {
   "nor.1": {
    "name": "Eliteserien",
@@ -2430,22 +2430,22 @@
   "uefa.nations": {
    "name": "Nations League",
    "teams": {
-    "Andorra": 1310.8,
-    "Malta": 1371.0,
-    "Austria": 1643.7,
-    "Israel": 1516.2,
-    "Kosovo": 1603.3,
-    "Republic of Ireland": 1544.1,
-    "Liechtenstein": 1239.1,
-    "Lithuania": 1364.9,
-    "Netherlands": 1641.8,
-    "Germany": 1668.4,
-    "Norway": 1698.7,
-    "Denmark": 1627.3,
-    "Portugal": 1664.3,
-    "Wales": 1518.7,
-    "Serbia": 1491.8,
-    "Greece": 1527.3,
+    "Andorra": 1295.6,
+    "Malta": 1386.2,
+    "Austria": 1654.9,
+    "Israel": 1505.1,
+    "Kosovo": 1613.2,
+    "Republic of Ireland": 1534.2,
+    "Liechtenstein": 1220.5,
+    "Lithuania": 1383.5,
+    "Netherlands": 1640.1,
+    "Germany": 1670.1,
+    "Norway": 1708.1,
+    "Denmark": 1617.9,
+    "Portugal": 1671.2,
+    "Wales": 1511.8,
+    "Serbia": 1475.5,
+    "Greece": 1543.6,
     "Armenia": 1343.6,
     "Latvia": 1405.1,
     "Georgia": 1530.3,
@@ -2705,8 +2705,114 @@
    },
    "mu": 2.723,
    "adWindow": "20260701-20270630",
-   "ad": {},
-   "adDone": []
+   "ad": {
+    "Andorra": [
+     1.0,
+     1.29,
+     2.0,
+     1.43
+    ],
+    "Malta": [
+     2.0,
+     1.43,
+     1.0,
+     1.29
+    ],
+    "Netherlands": [
+     1.0,
+     1.43,
+     1.0,
+     1.29
+    ],
+    "Germany": [
+     1.0,
+     1.29,
+     1.0,
+     1.43
+    ],
+    "Serbia": [
+     1.0,
+     1.34,
+     2.0,
+     1.38
+    ],
+    "Greece": [
+     2.0,
+     1.38,
+     1.0,
+     1.34
+    ],
+    "Liechtenstein": [
+     0.0,
+     1.12,
+     2.0,
+     1.6
+    ],
+    "Lithuania": [
+     2.0,
+     1.6,
+     0.0,
+     1.12
+    ],
+    "Portugal": [
+     1.0,
+     1.85,
+     0.0,
+     0.87
+    ],
+    "Wales": [
+     0.0,
+     0.87,
+     1.0,
+     1.85
+    ],
+    "Kosovo": [
+     1.0,
+     1.68,
+     0.0,
+     1.04
+    ],
+    "Republic of Ireland": [
+     0.0,
+     1.04,
+     1.0,
+     1.68
+    ],
+    "Norway": [
+     3.0,
+     1.71,
+     2.0,
+     1.02
+    ],
+    "Denmark": [
+     2.0,
+     1.02,
+     3.0,
+     1.71
+    ],
+    "Austria": [
+     3.0,
+     1.83,
+     1.0,
+     0.89
+    ],
+    "Israel": [
+     1.0,
+     0.89,
+     3.0,
+     1.83
+    ]
+   },
+   "adDone": [
+    "401861041",
+    "401861042",
+    "401861043",
+    "401861044",
+    "401861045",
+    "401861046",
+    "401861047",
+    "401861048"
+   ]
   }
  }
 }
