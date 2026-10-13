@@ -1,54 +1,81 @@
 {
- "generated": "2026-10-12",
+ "generated": "2026-10-13",
  "leagues": {
   "nor.1": {
    "name": "Eliteserien",
    "teams": {
-    "Rosenborg": 1537.4,
-    "Viking FK": 1767.2,
-    "Aalesund": 1308.0,
-    "Vålerenga": 1507.7,
     "Hamarkameratene": 1497.1,
-    "Sandefjord": 1561.9,
-    "Sarpsborg FK": 1519.7,
-    "Bodo/Glimt": 1778.7,
-    "Stabaek": 1418.5,
-    "Odds BK": 1358.5,
-    "Tromso": 1606.5,
+    "Viking FK": 1767.2,
     "Molde": 1561.1,
-    "SK Brann": 1637.3,
-    "Haugesund": 1274.0,
-    "Lillestrom": 1360.6,
-    "Stromsgodset": 1359.1,
-    "Fredrikstad": 1565.6,
+    "Rosenborg": 1537.4,
     "Kristiansund BK": 1440.6,
+    "SK Brann": 1637.3,
+    "Aalesund": 1308.0,
+    "Lillestrom": 1360.6,
     "KFUM Oslo": 1487.1,
-    "Bryne": 1453.2
+    "Vålerenga": 1507.7,
+    "Sandefjord": 1561.9,
+    "Tromso": 1606.5,
+    "Fredrikstad": 1565.6,
+    "Sarpsborg FK": 1519.7,
+    "Bodo/Glimt": 1778.7
    },
    "meta": {
-    "Rosenborg": {
-     "short": "Rosenborg",
-     "abbr": "ROS"
+    "Hamarkameratene": {
+     "short": "Hamarkameratene",
+     "abbr": "HAM"
     },
     "Viking FK": {
      "short": "Viking FK",
      "abbr": "VIK"
     },
+    "Molde": {
+     "short": "Molde",
+     "abbr": "MOL"
+    },
+    "Rosenborg": {
+     "short": "Rosenborg",
+     "abbr": "ROS"
+    },
+    "Kristiansund BK": {
+     "short": "Kristiansund",
+     "abbr": "KRI"
+    },
+    "SK Brann": {
+     "short": "SK Brann",
+     "abbr": "SKBR"
+    },
     "Aalesund": {
      "short": "Aalesund",
      "abbr": "AAL"
     },
-    "Vålerenga": {
-     "short": "Vålerenga",
-     "abbr": "VÅL"
+    "Lillestrom": {
+     "short": "Lillestrom",
+     "abbr": "LSK"
     },
-    "Hamarkameratene": {
-     "short": "Hamarkameratene",
-     "abbr": "HAM"
+    "KFUM Oslo": {
+     "short": "KFUM",
+     "abbr": "KFUM"
+    },
+    "IK Start": {
+     "short": "IK Start",
+     "abbr": "IKS"
+    },
+    "Vålerenga": {
+     "short": "Valerenga",
+     "abbr": "VAL"
     },
     "Sandefjord": {
      "short": "Sandefjord",
      "abbr": "SAN"
+    },
+    "Tromso": {
+     "short": "Tromso",
+     "abbr": "TRO"
+    },
+    "Fredrikstad": {
+     "short": "Fredrikstad",
+     "abbr": "FRE"
     },
     "Sarpsborg FK": {
      "short": "Sarpsborg FK",
@@ -56,65 +83,17 @@
     },
     "Bodo/Glimt": {
      "short": "Bodo/Glimt",
-     "abbr": "BOD"
-    },
-    "Stabaek": {
-     "short": "Stabaek",
-     "abbr": "STA"
-    },
-    "Odds BK": {
-     "short": "Odds BK",
-     "abbr": "ODD"
-    },
-    "Tromso": {
-     "short": "Tromso",
-     "abbr": "TRO"
-    },
-    "Molde": {
-     "short": "Molde",
-     "abbr": "MOL"
-    },
-    "SK Brann": {
-     "short": "SK Brann",
-     "abbr": "SK "
-    },
-    "Haugesund": {
-     "short": "Haugesund",
-     "abbr": "HAU"
-    },
-    "Lillestrom": {
-     "short": "Lillestrom",
-     "abbr": "LIL"
-    },
-    "Stromsgodset": {
-     "short": "Stromsgodset",
-     "abbr": "STR"
-    },
-    "Fredrikstad": {
-     "short": "Fredrikstad",
-     "abbr": "FRE"
-    },
-    "Kristiansund BK": {
-     "short": "Kristiansund BK",
-     "abbr": "KRI"
-    },
-    "KFUM Oslo": {
-     "short": "KFUM Oslo",
-     "abbr": "KFU"
-    },
-    "Bryne": {
-     "short": "Bryne",
-     "abbr": "BRY"
+     "abbr": "BODO"
     }
    },
    "mu": 3.188,
    "adWindow": "20260201-20261220",
    "ad": {
     "Hamarkameratene": [
-     27.0,
-     31.64,
-     42.0,
-     35.32
+     31.0,
+     33.69,
+     44.0,
+     36.46
     ],
     "Viking FK": [
      56.0,
@@ -123,10 +102,10 @@
      21.72
     ],
     "Molde": [
-     44.0,
-     36.5,
-     32.0,
-     30.45
+     46.0,
+     38.51,
+     34.0,
+     31.63
     ],
     "Rosenborg": [
      40.0,
@@ -147,34 +126,34 @@
      29.47
     ],
     "KFUM Oslo": [
-     25.0,
-     31.48,
-     35.0,
-     35.48
+     27.0,
+     33.14,
+     36.0,
+     37.01
     ],
     "IK Start": [
-     22.0,
-     23.2,
-     44.0,
-     43.75
+     24.0,
+     24.34,
+     48.0,
+     45.8
     ],
     "Aalesund": [
-     31.0,
-     24.42,
-     44.0,
-     42.52
+     33.0,
+     25.57,
+     48.0,
+     44.56
     ],
     "Lillestrom": [
-     28.0,
-     26.65,
-     29.0,
-     40.29
+     30.0,
+     27.83,
+     31.0,
+     42.3
     ],
     "Vålerenga": [
-     31.0,
-     31.92,
-     42.0,
-     35.03
+     32.0,
+     33.45,
+     44.0,
+     36.69
     ],
     "Sandefjord": [
      22.0,
@@ -183,22 +162,22 @@
      36.01
     ],
     "Tromso": [
-     40.0,
-     38.44,
-     29.0,
-     28.51
+     41.0,
+     40.02,
+     30.0,
+     30.12
     ],
     "Fredrikstad": [
-     25.0,
-     33.98,
-     32.0,
-     32.95
+     26.0,
+     35.59,
+     33.0,
+     34.53
     ],
     "Sarpsborg FK": [
-     24.0,
-     30.64,
-     29.0,
-     36.31
+     28.0,
+     32.68,
+     31.0,
+     37.46
     ],
     "Bodo/Glimt": [
      56.0,
@@ -347,8 +326,13 @@
     "401843447",
     "401843450",
     "401843451",
+    "401843452",
+    "401843453",
+    "401843454",
     "401843455",
     "401843456",
+    "401843457",
+    "401843458",
     "401873893",
     "401873902",
     "401873903",
@@ -495,10 +479,10 @@
      4.83
     ],
     "Coventry City": [
-     1.0,
-     3.87,
-     10.0,
-     9.88
+     5.0,
+     4.75,
+     11.0,
+     11.75
     ],
     "Hull City": [
      8.0,
@@ -585,10 +569,10 @@
      7.82
     ],
     "Newcastle United": [
-     9.0,
-     7.34,
-     9.0,
-     6.41
+     10.0,
+     9.21,
+     13.0,
+     7.29
     ],
     "Liverpool": [
      7.0,
@@ -623,6 +607,7 @@
     "401879264",
     "401879265",
     "401879266",
+    "401879267",
     "401879268",
     "401879269",
     "401879270",
@@ -790,10 +775,10 @@
      10.91
     ],
     "Sevilla": [
-     10.0,
-     7.74,
-     9.0,
-     11.13
+     13.0,
+     8.81,
+     12.0,
+     12.76
     ],
     "Rayo Vallecano": [
      11.0,
@@ -820,10 +805,10 @@
      11.76
     ],
     "Levante": [
-     8.0,
-     6.86,
-     12.0,
-     9.3
+     11.0,
+     8.49,
+     15.0,
+     10.37
     ],
     "Deportivo": [
      12.0,
@@ -904,6 +889,7 @@
     "401882849",
     "401882850",
     "401882851",
+    "401882852",
     "401882853",
     "401882854",
     "401882855",
@@ -1342,10 +1328,10 @@
    "adWindow": "20260701-20270630",
    "ad": {
     "Udinese": [
-     8.0,
-     5.86,
-     11.0,
-     6.29
+     9.0,
+     7.07,
+     13.0,
+     7.51
     ],
     "Como": [
      9.0,
@@ -1402,10 +1388,10 @@
      5.43
     ],
     "Venezia": [
-     4.0,
-     5.07,
-     13.0,
-     7.06
+     5.0,
+     5.76,
+     16.0,
+     8.8
     ],
     "Lecce": [
      6.0,
@@ -1414,10 +1400,10 @@
      8.17
     ],
     "Atalanta": [
-     5.0,
-     6.76,
-     7.0,
-     5.37
+     8.0,
+     8.5,
+     8.0,
+     6.06
     ],
     "Sassuolo": [
      10.0,
@@ -1426,10 +1412,10 @@
      8.01
     ],
     "Torino": [
-     5.0,
-     4.95,
-     8.0,
-     7.18
+     7.0,
+     6.17,
+     9.0,
+     8.39
     ],
     "AC Milan": [
      11.0,
@@ -1481,6 +1467,7 @@
     "401874757",
     "401874758",
     "401874759",
+    "401874763",
     "401874764",
     "401874767",
     "401874768",
@@ -1520,6 +1507,7 @@
     "401874979",
     "401874987",
     "401874991",
+    "401875005",
     "401875021"
    ]
   },
@@ -1627,10 +1615,10 @@
      11.35
     ],
     "FC Famalicao": [
-     9.0,
-     10.78,
-     7.0,
-     7.99
+     10.0,
+     12.55,
+     11.0,
+     8.9
     ],
     "Maritimo": [
      9.0,
@@ -1675,10 +1663,10 @@
      5.63
     ],
     "Alverca": [
-     9.0,
-     8.11,
-     11.0,
-     10.67
+     13.0,
+     9.02,
+     12.0,
+     12.44
     ],
     "Benfica": [
      24.0,
@@ -1734,6 +1722,7 @@
     "401885422",
     "401885423",
     "401885424",
+    "401885425",
     "401885426",
     "401885427",
     "401885428",
